@@ -9,6 +9,9 @@ A day-by-day, color-coded timeline of your Chrome browsing history, with an inte
 - Day-by-day timeline of your Chrome history
 - Pages auto-sorted into categories (Email, AI, Video, Work, Finance, Shopping, Social, Search and more)
 - 3D time-lane view: size dots by time on page, focus threshold, trails, auto-rotate
+- Zoom like a map, but through time: scroll toward the cursor and the time axis refines (days, hours, minutes) while labels and full cards for the busiest pages appear (toggle: "Detail on zoom")
+- Every panel can be collapsed or popped out into a draggable floating window
+- Optional thumbnails on hover and pinned cards: YouTube video thumbnails, site icons for other pages
 - Hover for a quick look, click to pin a card, double-click to open the site
 - 100% client-side: reads the SQLite History file with sql.js in your browser
 
@@ -20,7 +23,11 @@ A day-by-day, color-coded timeline of your Chrome browsing history, with an inte
 
 ## Privacy
 
-No data leaves your machine. The only network requests are for the sql.js and three.js libraries from public CDNs. Do not commit your own History file to this repo; the `.gitignore` blocks common names.
+By default no data leaves your machine. The only network requests are for the sql.js and three.js libraries from public CDNs.
+
+The optional **Thumbnails** checkbox (off by default) shows a YouTube thumbnail for video pages and a site icon for everything else. Turning it on makes your browser fetch those images from YouTube's image server and Google's favicon service, so they can see which videos and sites you hover over. Leave it off if you don't want that.
+
+Do not commit your own History file to this repo; the `.gitignore` blocks common names.
 
 ## License
 

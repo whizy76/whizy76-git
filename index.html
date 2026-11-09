@@ -106,6 +106,21 @@ select{color:var(--txt);background:#0b1220;border:1px solid var(--line);border-r
 input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-align:middle}
 #gtip div{word-break:break-word}
 #gtip .u{display:block;font-size:.8125rem;color:var(--mute)}
+.thumb{display:flex;align-items:center;justify-content:center;width:160px;height:90px;margin:.35rem 0;background:#05080f;border:1px solid #1f2a44;border-radius:6px;overflow:hidden}
+.thumb img{display:block}
+.thumb img.yt{width:160px;height:90px;object-fit:cover}
+.thumb img.fav{width:48px;height:48px}
+.thumb.s{width:96px;height:54px;margin:.2rem 0}
+.thumb.s img.yt{width:96px;height:54px}
+.thumb.s img.fav{width:32px;height:32px}
+#gaxis{position:absolute;left:0;right:0;bottom:0;height:26px;background:linear-gradient(rgba(11,18,32,0),rgba(11,18,32,.92));pointer-events:none;z-index:4;overflow:hidden}
+#gaxis .tk{position:absolute;left:0;bottom:4px;font:700 12px Georgia,serif;color:var(--mute);background:rgba(11,18,32,.85);padding:0 5px;border-radius:3px;white-space:nowrap}
+#glabs{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:4}
+.glab{position:absolute;left:0;top:0;box-sizing:border-box;background:rgba(11,18,32,.9);border:1px solid #2b3b5e;border-left:4px solid var(--c,#999);border-radius:6px;padding:.1rem .4rem;font-size:.75rem;line-height:1.25;color:var(--txt);overflow:hidden}
+.glab b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-weight:700}
+.glab.l1{width:150px}.glab.l1 b{-webkit-line-clamp:1}
+.glab.l2{width:190px}.glab.l3{width:230px}
+.glab .d{color:var(--mute);font-size:.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #gtip .hint{font-size:.75rem;color:var(--mute);margin-top:.15rem}
 #gpin{position:absolute;left:0;top:0;z-index:6;width:min(23rem,92%);background:#0b1220;border:2px solid var(--acc);border-radius:10px;padding:.6rem .8rem;box-shadow:0 6px 24px rgba(0,0,0,.6)}
 #gpin .top{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.25rem}
@@ -121,6 +136,23 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
 #guide li{margin:.4rem 0}
 #copyMsg{font-size:.9375rem;color:var(--mute)}
 #gnote{color:#ffb4b4;font-size:.9375rem}
+/* Collapsible / floating panels */
+.panel{margin:.5rem 1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+main>.panel{margin:.5rem 0 .5rem 1rem;align-self:start;min-width:0}
+#graphWrap .panel{margin:.4rem 0}
+.phead{display:flex;align-items:center;gap:.25rem;padding:.1rem .4rem .1rem .75rem;background:var(--panel2);border-radius:7px 7px 0 0;user-select:none}
+.panel.collapsed .phead{border-radius:7px}
+.ptitle{flex:1;font-size:.9375rem;font-weight:700}
+.pbtn{min-width:40px;min-height:40px;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;font-size:1.05rem;line-height:1}
+.pbtn:hover{border-color:var(--acc)}
+.pbody>*{margin:0!important;border:0!important;border-radius:0!important;max-width:none}
+.panel.floating{position:fixed;z-index:30;margin:0!important;width:26rem;max-width:96vw;max-height:90vh;min-width:15rem;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.65);resize:both;overflow:hidden;background:var(--panel);border-color:var(--acc)}
+.panel.floating .phead{cursor:move;touch-action:none}
+.panel.floating .pbody{flex:1;min-height:0;overflow:auto}
+.panel.floating.collapsed{resize:none;height:auto!important}
+main.nodays{grid-template-columns:1fr}
+.paneltools{display:flex;gap:.5rem;margin-left:auto}
+.paneltools .btn{min-height:36px;padding:.15rem .75rem;font-size:.875rem}
 @media(max-width:760px){main{grid-template-columns:1fr}#days{max-height:14rem;border-right:0;border-bottom:1px solid var(--line)}.row{grid-template-columns:4.5rem 1fr}.row .chip{grid-column:2}.row .body{grid-column:1/-1}.gap{margin-left:1rem}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -131,7 +163,7 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
   <span style="color:var(--mute);font-size:.9375rem">Runs only in your browser. Nothing is uploaded.</span>
 </header>
 
-<div class="controls">
+<div class="controls" id="pCtl">
   <button class="btn primary pickbtn" id="pick" type="button" aria-describedby="pathHint"><span>📂 Open Chrome History file</span><span class="bh" id="pathHint">Look for: the file named History</span></button>
   <input type="file" id="file" hidden>
   <label for="days_n">Load last <input type="number" id="days_n" min="1" max="3650" value="90"> days</label>
@@ -139,7 +171,7 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
   <label for="q" class="sr" style="position:absolute;left:-9999px">Search all loaded days</label>
   <input type="search" id="q" placeholder="Search titles and URLs across all loaded days…" aria-label="Search all loaded days">
 </div>
-<div class="controls" style="border-top:0;padding-top:0">
+<div class="controls" id="pView" style="border-top:0;padding-top:0">
   <span id="viewLbl" style="font-size:.9375rem">View:</span>
   <div role="group" aria-labelledby="viewLbl" style="display:flex;gap:.5rem">
     <button class="vbtn" id="vTime" type="button" aria-pressed="false">📅 Timeline</button>
@@ -175,7 +207,7 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
   <div id="right">
     <section id="view" aria-live="polite" hidden><p class="empty">No history loaded yet.</p></section>
     <section id="graphWrap" aria-label="3D graph of pages">
-      <div class="gbar">
+      <div class="gbar" id="gbar">
         <label for="gscope">Show <select id="gscope"><option value="all">all loaded days</option><option value="day">selected day only</option></select></label>
         <label for="glayout">Layout <select id="glayout"><option value="lanes">Time lanes (left to right = time)</option><option value="cluster">Clustered by site</option></select></label>
         <label for="gsize">Size by <select id="gsize"><option value="time">time on page</option><option value="visits">number of visits</option><option value="equal">all equal</option></select></label>
@@ -183,12 +215,14 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
         <label for="gbg">Pages under threshold <select id="gbg"><option value="dimback">dim and push back</option><option value="dim">dim only</option><option value="hide">hide</option></select></label>
         <label><input type="checkbox" id="gtrails" checked> Trails</label>
         <label for="gmax">Max dots <select id="gmax"><option value="3000">3,000</option><option value="10000" selected>10,000</option><option value="25000">25,000</option><option value="0">no limit (may be slow)</option></select></label>
+        <label title="Zoom toward the cursor. The closer you get, the more detail appears: finer time ticks (days, hours, minutes) and labels on the busiest pages."><input type="checkbox" id="gsem" checked> Detail on zoom</label>
         <label><input type="checkbox" id="grot"> Auto-rotate</label>
+        <label title="Off by default. When on, thumbnails are fetched from YouTube's image server and favicons from Google's favicon service, which tells them which videos and sites you hover."><input type="checkbox" id="gthumb"> Thumbnails (loads images online)</label>
         <button class="btn" id="gfit" type="button">Reset view</button>
       </div>
-      <div class="m" id="gstats" style="margin-bottom:.4rem">Open a History file to see the graph.</div>
-      <div id="gnote" role="alert"></div>
-      <div id="gcanvas"><div id="gtip" hidden></div><div id="gpin" role="group" aria-label="Pinned page details" hidden></div></div>
+      <div id="ginfo"><div class="m" id="gstats" style="margin-bottom:.4rem">Open a History file to see the graph.</div>
+      <div id="gnote" role="alert"></div></div>
+      <div id="gcanvas"><div id="gaxis" aria-hidden="true"></div><div id="glabs" aria-hidden="true"></div><div id="gtip" hidden></div><div id="gpin" role="group" aria-label="Pinned page details" hidden></div></div>
       <div id="gdetail" aria-live="polite">Drag to rotate, scroll to zoom, right-drag to pan. Hover a dot for a quick look. Click it to pin a card beside it with an Open site button (Esc closes the card), or double-click to open the site straight away. Color = category, size = your Size-by choice, lines = the order you browsed. Faded, deeper dots are pages with little or no recorded time on page (adjust with Focus threshold). The Timeline view is the keyboard and screen-reader friendly version of the same data.</div>
     </section>
   </div>
@@ -443,12 +477,30 @@ async function initThree(){
     renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
     host.insertBefore(renderer.domElement,host.firstChild);
     const scene=new THREE.Scene();
-    const camera=new THREE.PerspectiveCamera(55,1.6,1,6000);
+    const camera=new THREE.PerspectiveCamera(55,1.6,0.3,6000);
     const controls=new THREE.OrbitControls(camera,renderer.domElement);
     controls.enableDamping=!reduce; controls.dampingFactor=0.08; controls.autoRotateSpeed=0.6;
     G={renderer,scene,camera,controls,group:null,nodes:[],ring:null,bounds:null,raf:0,pend:false,hov:null,pin:null,pinE:null,pinW:300,pinH:160,
+       zf:1,dist0:900,lane:null,axis:null,axKey:'',ticks:[],lineSeg:null,labSig:'',labT:0,labPool:[],
        sig:'',geo:new THREE.SphereGeometry(1,14,10),mats:new Map(),down:null,dummy:new THREE.Object3D(),tmp:new THREE.Vector3()};
     const cv=renderer.domElement;
+    /* Google-Maps-style zoom: the point under the cursor stays put while you zoom in or out */
+    controls.enableZoom=false;
+    cv.addEventListener('wheel',ev=>{
+      ev.preventDefault();
+      const cam=G.camera,tgt=G.controls.target,r=cv.getBoundingClientRect();
+      const nx=((ev.clientX-r.left)/r.width)*2-1, ny=-(((ev.clientY-r.top)/r.height)*2-1);
+      const dir=new THREE.Vector3(); cam.getWorldDirection(dir);
+      const ray=new THREE.Vector3(nx,ny,0.5).unproject(cam).sub(cam.position).normalize();
+      const den=ray.dot(dir); if(Math.abs(den)<1e-6) return;
+      const tp=tgt.clone().sub(cam.position).dot(dir)/den;
+      const P=cam.position.clone().add(ray.multiplyScalar(tp));
+      let s=Math.exp(ev.deltaY*(ev.deltaMode===1?0.05:0.0015));
+      const dist=cam.position.distanceTo(tgt), nd=Math.min(Math.max(dist*s,1.5),G.dist0*3); s=nd/dist;
+      const cOff=cam.position.clone().sub(P).multiplyScalar(s), tOff=tgt.clone().sub(P).multiplyScalar(s);
+      cam.position.copy(P).add(cOff); tgt.copy(P).add(tOff);
+      G.controls.update();
+    },{passive:false});
     cv.addEventListener('pointerdown',ev=>{G.down={x:ev.clientX,y:ev.clientY};});
     cv.addEventListener('pointermove',ev=>{if(G.pend)return;G.pend=true;const x=ev.clientX,y=ev.clientY;requestAnimationFrame(()=>{G.pend=false;hoverAt(x,y);});});
     cv.addEventListener('pointerleave',()=>{setHover(null);$('gtip').hidden=true;});
@@ -496,7 +548,7 @@ function clearGroup(){
     if(o.geometry&&o.geometry!==G.geo) o.geometry.dispose();
     if(o.material){ if(o.material.map) o.material.map.dispose(); if(!shared.includes(o.material)) o.material.dispose(); }
   });
-  G.group=null; G.nodes=[]; G.ring=null; G.hov=null;
+  G.group=null; G.nodes=[]; G.ring=null; G.hov=null; G.lane=null; G.axis=null; G.lineSeg=null; G.axKey=''; G.labSig='';
 }
 /* keep the most informative pages when over the dot limit: drop low-time pages first, then the oldest */
 function thin(pool,max,k){
@@ -541,19 +593,9 @@ function buildGraph(){
       group.add(line([-W/2-10,yOf(i),0,W/2+10,yOf(i),0],new THREE.Color(c.color),0.35));
       const lb=makeLabel(`${c.icon} ${c.name}`,c.color,22); lb.position.set(-W/2-110,yOf(i),0); group.add(lb);
     });
-    const spanH=span/3600000, bottom=yOf(cats.length-1)-34, top=yOf(0)+22, ticks=[];
-    if(spanH<=48){
-      const step=spanH<=10?1:spanH<=24?2:4, d=new Date(tmin); d.setMinutes(0,0,0); d.setHours(d.getHours()+1);
-      for(;d.getTime()<=tmax&&ticks.length<60;d.setHours(d.getHours()+step)) ticks.push([d.getTime(),fmtHour(d.getTime())]);
-    }else{
-      const step=Math.max(1,Math.ceil(spanH/24/25)), d=new Date(tmin); d.setHours(0,0,0,0); d.setDate(d.getDate()+1);
-      for(;d.getTime()<=tmax&&ticks.length<60;d.setDate(d.getDate()+step)) ticks.push([d.getTime(),shortDate(d.getTime())]);
-    }
-    ticks.forEach(([t,txt])=>{
-      const x=-W/2+(t-tmin)/span*W;
-      group.add(line([x,bottom+8,0,x,top,0],0x8fa3c7,0.14));
-      const lb=makeLabel(txt,'#b4bfd6',18); lb.position.set(x,bottom-6,0); group.add(lb);
-    });
+    const bottom=yOf(cats.length-1)-34, top=yOf(0)+22;
+    /* the time axis is built live as you zoom (see updateAxis): days -> hours -> minutes */
+    G.lane={tmin,span,W,bottom,top}; G.axis=new THREE.Group(); group.add(G.axis); G.axKey='';
     mn.x=-W/2-230; mx.x=W/2+20; mn.y=bottom-30; mx.y=top; mn.z=-70; mx.z=70;
   }else{
     const cnt=new Map(); pool.forEach(e=>{const d=e.domain||'(none)';cnt.set(d,(cnt.get(d)||0)+1);});
@@ -587,7 +629,8 @@ function buildGraph(){
     const im=new THREE.InstancedMesh(G.geo,matFor(color,dim),list.length);
     im.frustumCulled=false; if(dim) im.renderOrder=-1;
     list.forEach((n,j)=>{
-      G.dummy.position.copy(n.pos); G.dummy.scale.set(n.r,n.r,n.r); G.dummy.updateMatrix();
+      const sz=n.r*G.zf;
+      G.dummy.position.copy(n.pos); G.dummy.scale.set(sz,sz,sz); G.dummy.updateMatrix();
       im.setMatrixAt(j,G.dummy.matrix); n.im=im;
     });
     im.instanceMatrix.needsUpdate=true; group.add(im);
@@ -626,7 +669,7 @@ function fitView(){
   const w=b.max.x-b.min.x+80,h=b.max.y-b.min.y+80,d=b.max.z-b.min.z;
   const aspect=G.camera.aspect||1.6,tanv=Math.tan(G.camera.fov*Math.PI/360);
   const dist=Math.max((h/2)/tanv,(w/2)/(tanv*aspect))*1.08+d/2+40;
-  G.controls.target.set(cx,cy,cz);
+  G.controls.target.set(cx,cy,cz); G.dist0=dist;
   G.camera.position.set(cx-dist*0.10,cy+dist*0.14,cz+dist*0.98);
   G.camera.far=Math.max(6000,dist*6); G.camera.updateProjectionMatrix(); G.controls.update();
 }
@@ -639,7 +682,7 @@ function pickAt(cx,cy){
     v.copy(n.pos).project(G.camera); if(v.z>1||v.z<-1) continue;
     const sx=(v.x+1)/2*w,sy=(1-v.y)/2*h,d=Math.hypot(sx-px,sy-py);
     if(d>40) continue;
-    const dist=G.camera.position.distanceTo(n.pos),rpx=n.r*h/(2*tanv*dist);
+    const dist=G.camera.position.distanceTo(n.pos),rpx=n.r*G.zf*h/(2*tanv*dist);
     if(d>Math.max(9,rpx+3)) continue;
     const score=d+(n.bg?8:0)+v.z*4;
     if(score<bs){bs=score;best=n;}
@@ -647,13 +690,27 @@ function pickAt(cx,cy){
   return best;
 }
 function setNodeScale(n,f){
-  G.dummy.position.copy(n.pos); G.dummy.scale.set(n.r*f,n.r*f,n.r*f); G.dummy.updateMatrix();
+  const s=n.r*f*G.zf;
+  G.dummy.position.copy(n.pos); G.dummy.scale.set(s,s,s); G.dummy.updateMatrix();
   n.im.setMatrixAt(n.i,G.dummy.matrix); n.im.instanceMatrix.needsUpdate=true;
 }
 function setHover(n){
   if(G.hov===n) return;
   if(G.hov) setNodeScale(G.hov,1);
   G.hov=n; if(n) setNodeScale(n,1.5);
+}
+/* Optional thumbnails (opt-in). YouTube video thumbnail when the URL is a video, otherwise the site's favicon. */
+function thumbOn(){const c=$('gthumb');return !!(c&&c.checked);}
+function thumbEl(e,sm){
+  if(!thumbOn()) return null;
+  const m=/^https?:\/\/(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i.exec(e.url);
+  let src,cls;
+  if(m){src='https://i.ytimg.com/vi/'+m[1]+'/mqdefault.jpg';cls='yt';}
+  else if(e.domain){src='https://www.google.com/s2/favicons?sz=64&domain='+encodeURIComponent(e.domain);cls='fav';}
+  else return null;
+  const box=el('div',{class:'thumb'+(sm?' s':'')});
+  box.append(el('img',{src,alt:'',class:cls,width:cls==='yt'?(sm?96:160):(sm?32:48),height:cls==='yt'?(sm?54:90):(sm?32:48),referrerpolicy:'no-referrer',onerror:function(){box.remove();}}));
+  return box;
 }
 function metaLines(e){
   const L=[new Date(e.t).toLocaleString(), `${e.n} visit${e.n>1?'s':''} · ${fmtSecs(e.dur)}`];
@@ -668,6 +725,7 @@ function hoverAt(cx,cy){
   tip.innerHTML='';
   tip.append(el('b',{style:{color:e.cat.color}},`${e.cat.icon} ${e.cat.name}`),
     el('div',{},(e.title||e.domain||e.url).slice(0,100)),
+    ...[thumbEl(e)].filter(Boolean),
     el('span',{class:'u'},e.url.replace(/^https?:\/\//,'').slice(0,100)),
     ...metaLines(e).map(t=>el('div',{class:'m'},t)),
     el('div',{class:'hint'},'Click to pin a card · double-click to open the site'));
@@ -681,6 +739,7 @@ function pinBody(e,withClose){
   if(withClose) head.append(el('button',{type:'button',class:'btn','aria-label':'Close details',onclick:closePin},'✕ Close'));
   items.push(head,
     el('a',{class:'t',href:e.url,target:'_blank',rel:'noopener noreferrer'},(e.title||e.domain||e.url)+' ↗'),
+    ...[withClose?thumbEl(e):null].filter(Boolean),
     el('span',{class:'u'},e.url.length>140?e.url.slice(0,137)+'…':e.url),
     el('span',{class:'m'},metaLines(e).join(' · ')),
     el('div',{},
@@ -690,7 +749,7 @@ function pinBody(e,withClose){
 }
 function pinNode(n){
   G.pin=n; G.pinE=n.e;
-  G.ring.visible=true; G.ring.position.copy(n.pos); const sc=n.r*1.9; G.ring.scale.set(sc,sc,sc);
+  G.ring.visible=true; G.ring.position.copy(n.pos); const sc=n.r*1.9*G.zf; G.ring.scale.set(sc,sc,sc);
   const card=$('gpin'); card.innerHTML=''; card.append(...pinBody(n.e,true)); card.hidden=false;
   G.pinW=card.offsetWidth||300; G.pinH=card.offsetHeight||160;
   const box=$('gdetail'); box.innerHTML=''; box.append(...pinBody(n.e,false));
@@ -713,9 +772,113 @@ function positionPin(){
   let y=Math.max(6,Math.min(sy-24,h-ch-6));
   card.style.transform=`translate(${x}px,${y}px)`;
 }
+/* ---------- Semantic zoom: the closer you get, the more detail appears (like a map, but in time) ---------- */
+const TICK_STEPS=[1e4,3e4,6e4,3e5,9e5,18e5,36e5,108e5,216e5,432e5,864e5,1728e5,6048e5];
+function tickLabel(t,step,first){
+  if(step>=864e5) return shortDate(t);
+  const d=new Date(t), tm=d.toLocaleTimeString([], step<6e4?{hour:'numeric',minute:'2-digit',second:'2-digit'}:step<36e5?{hour:'numeric',minute:'2-digit'}:{hour:'numeric'});
+  return (first||(d.getHours()===0&&d.getMinutes()===0))?shortDate(t)+' '+tm:tm;
+}
+/* Time axis, rebuilt as you zoom. Labels are HTML pinned to the bottom edge so they stay visible wherever you zoom. */
+function updateAxis(){
+  const ax=$('gaxis'),L=G.lane; if(!ax) return;
+  if(!L||!G.axis){ if(ax.firstChild) ax.textContent=''; G.ticks=[]; G.axKey=''; return; }
+  const cam=G.camera,tgt=G.controls.target,dist=cam.position.distanceTo(tgt);
+  const hw=Math.tan(cam.fov*Math.PI/360)*dist*(cam.aspect||1.6);
+  const t0=L.tmin+(tgt.x-hw+L.W/2)/L.W*L.span, t1=L.tmin+(tgt.x+hw+L.W/2)/L.W*L.span, vis=Math.max(1,t1-t0);
+  let step=TICK_STEPS[TICK_STEPS.length-1]; for(const s of TICK_STEPS){ if(vis/s<=16){step=s;break;} }
+  const a=Math.max(t0,L.tmin-step), b=Math.min(t1,L.tmin+L.span+step);
+  const key=step+'|'+Math.floor(a/step)+'|'+Math.floor(b/step);
+  if(key!==G.axKey){
+    G.axKey=key; const ticks=[];
+    if(step>=864e5){
+      const days=step/864e5, d=new Date(a); d.setHours(0,0,0,0); if(d.getTime()<a) d.setDate(d.getDate()+1);
+      for(;d.getTime()<=b&&ticks.length<60;d.setDate(d.getDate()+days)) ticks.push(d.getTime());
+    }else{
+      const off=new Date(a).getTimezoneOffset()*60000;
+      for(let t=Math.ceil((a-off)/step)*step+off;t<=b&&ticks.length<60;t+=step) ticks.push(t);
+    }
+    ax.textContent='';
+    G.ticks=ticks.map((t,i)=>{
+      const s=document.createElement('span'); s.className='tk'; s.textContent=tickLabel(t,step,i===0); ax.append(s);
+      return {t,x:-L.W/2+(t-L.tmin)/L.span*L.W,s};
+    });
+    if(G.lineSeg){G.axis.remove(G.lineSeg);G.lineSeg.geometry.dispose();G.lineSeg.material.dispose();G.lineSeg=null;}
+    if(G.ticks.length){
+      const pts=[]; G.ticks.forEach(k=>pts.push(k.x,L.bottom+8,0,k.x,L.top,0));
+      const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+      G.lineSeg=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x8fa3c7,transparent:true,opacity:0.16}));
+      G.lineSeg.frustumCulled=false; G.axis.add(G.lineSeg);
+    }
+  }
+  const w=G.renderer.domElement.clientWidth, v=G.tmp;
+  for(const k of G.ticks){
+    v.set(k.x,L.bottom,0).project(cam); const sx=(v.x+1)/2*w;
+    if(v.z>1||sx<-60||sx>w+60){k.s.style.display='none';continue;}
+    k.s.style.display=''; k.s.style.transform='translateX('+Math.round(sx)+'px) translateX(-50%)';
+  }
+}
+/* Dots keep roughly constant on-screen size while you zoom in, so the time axis spreads them apart. */
+function applyZoom(on){
+  const z=G.camera.position.distanceTo(G.controls.target)/G.dist0;
+  const f=on?Math.min(1,Math.max(0.12,z)):1, q=Math.pow(2,Math.round(Math.log2(f)*6)/6);
+  if(Math.abs(q-G.zf)<1e-6) return;
+  G.zf=q; const ims=new Set();
+  for(const n of G.nodes){
+    const s=n.r*q*(n===G.hov?1.5:1);
+    G.dummy.position.copy(n.pos); G.dummy.scale.set(s,s,s); G.dummy.updateMatrix();
+    n.im.setMatrixAt(n.i,G.dummy.matrix); ims.add(n.im);
+  }
+  ims.forEach(im=>{im.instanceMatrix.needsUpdate=true;});
+  if(G.pin&&G.ring){const sc=G.pin.r*1.9*q; G.ring.scale.set(sc,sc,sc);}
+}
+/* Labels by zoom level: 1 = titles of the busiest pages, 2 = + site, 3 = full cards (thumbnail, time, duration). */
+function fillLab(d,n,lvl){
+  const e=n.e, key=e.url+'|'+e.t+'|'+lvl+'|'+thumbOn();
+  d.className='glab l'+lvl; d.style.setProperty('--c',e.cat.color);
+  if(d.dataset.k===key) return; d.dataset.k=key; d.textContent='';
+  if(lvl===3){const th=thumbEl(e,true); if(th) d.append(th);}
+  d.append(el('b',{},(e.title||e.domain||e.url).slice(0,lvl===1?46:90)));
+  if(lvl>=2) d.append(el('div',{class:'d'},e.domain||e.url.replace(/^https?:\/\//,'').slice(0,50)));
+  if(lvl===3) d.append(el('div',{class:'d'},new Date(e.t).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+fmtSecs(e.dur)));
+}
+function updateLabels(on){
+  const box=$('glabs'); if(!box) return;
+  const cam=G.camera,tgt=G.controls.target,z=cam.position.distanceTo(tgt)/G.dist0;
+  const lvl=!on||z>0.55?0:z>0.3?1:z>0.15?2:3;
+  const p=cam.position,sig=[lvl,Math.round(p.x),Math.round(p.y),Math.round(p.z),Math.round(tgt.x),Math.round(tgt.y),G.pinE?1:0,thumbOn()?1:0,G.nodes.length].join(',');
+  const now=performance.now();
+  if(sig===G.labSig||now-G.labT<70) return;
+  G.labSig=sig; G.labT=now;
+  const pool=G.labPool;
+  if(!lvl){pool.forEach(d=>{d.hidden=true;}); return;}
+  const w=box.clientWidth,h=box.clientHeight,v=G.tmp,cand=[];
+  for(const n of G.nodes){
+    v.copy(n.pos).project(cam); if(v.z>1||v.x<-1||v.x>1||v.y<-1||v.y>1) continue;
+    cand.push({n,sx:(v.x+1)/2*w,sy:(1-v.y)/2*h,sc:(n.e.dur+n.e.n*2000+1)*(1-0.45*(v.x*v.x+v.y*v.y)/2)*(n.bg?0.2:1)});
+  }
+  cand.sort((a,b)=>b.sc-a.sc);
+  const cap=[0,14,36,40][lvl],Wd=[0,150,190,230][lvl],Hh=[0,24,44,thumbOn()?128:80][lvl],placed=[];
+  let used=0;
+  for(const c of cand){
+    if(used>=cap) break; if(G.pin&&c.n===G.pin) continue;
+    let x=c.sx+12; if(x+Wd>w-4) x=c.sx-12-Wd; if(x<4) continue;
+    const y=Math.max(4,Math.min(c.sy-Hh/2,h-Hh-30));
+    if(placed.some(r=>x<r.x+r.w&&x+Wd>r.x&&y<r.y+r.h&&y+Hh>r.y)) continue;
+    placed.push({x,y,w:Wd,h:Hh});
+    let d=pool[used]; if(!d){d=document.createElement('div'); box.append(d); pool.push(d);}
+    fillLab(d,c.n,lvl); d.hidden=false; d.style.transform='translate('+Math.round(x)+'px,'+Math.round(y)+'px)'; used++;
+  }
+  for(let i=used;i<pool.length;i++) pool[i].hidden=true;
+}
+function semStep(){
+  if(!G.nodes.length){const ax=$('gaxis'); if(ax&&ax.firstChild) ax.textContent=''; G.labPool.forEach(d=>{d.hidden=true;}); return;}
+  const on=$('gsem')?$('gsem').checked:true;
+  applyZoom(on); updateAxis(); updateLabels(on);
+}
 function startLoop(){
   if(!G||G.raf) return;
-  const step=()=>{G.raf=requestAnimationFrame(step);G.controls.update();G.renderer.render(G.scene,G.camera);if(G.pin) positionPin();};
+  const step=()=>{G.raf=requestAnimationFrame(step);G.controls.update();semStep();G.renderer.render(G.scene,G.camera);if(G.pin) positionPin();};
   step();
 }
 function stopLoop(){if(G&&G.raf){cancelAnimationFrame(G.raf);G.raf=0;}}
@@ -807,6 +970,100 @@ $('resetRules').onclick=()=>{
 };
 $('verSpan').textContent='v'+VERSION; $('verFoot').textContent='v'+VERSION;
 loadRules(); renderGuide(); setMode('graph');
+})();
+</script>
+<script>
+/* Panels: every non-chart area can be collapsed, or popped out into a draggable, resizable floating window. */
+(function(){
+'use strict';
+const KEY='bhr-panels-v1'; let st={};
+try{st=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){st={};}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}};
+const defs=[['pCtl','Open file and search'],['pView','View'],['guide','Where is my History file?'],['legend','Categories'],
+  ['days','Days'],['gbar','Graph controls'],['ginfo','Graph info'],['gdetail','Selected page details'],['rulesBox','Category rules']];
+const P={}; let zTop=30, nth=0;
+const main=document.querySelector('main');
+function clamp(w,x,y){
+  const mx=Math.max(0,innerWidth-Math.min(w.offsetWidth,innerWidth)), my=Math.max(0,innerHeight-60);
+  return [Math.min(Math.max(0,x),mx),Math.min(Math.max(0,y),my)];
+}
+function apply(id){
+  const p=P[id],s=st[id],w=p.w;
+  w.classList.toggle('collapsed',!!s.c); p.body.hidden=!!s.c;
+  p.cb.textContent=s.c?'▸':'▾'; p.cb.setAttribute('aria-expanded',String(!s.c));
+  p.cb.setAttribute('aria-label',(s.c?'Expand ':'Collapse ')+p.title);
+  p.cb.title=p.cb.getAttribute('aria-label');
+  w.classList.toggle('floating',!!s.f);
+  p.fb.textContent=s.f?'⇲':'⧉';
+  p.fb.setAttribute('aria-label',(s.f?'Dock ':'Pop out ')+p.title+(s.f?' back into the page':' as a floating window'));
+  p.fb.title=p.fb.getAttribute('aria-label');
+  if(s.f){
+    if(s.x==null){s.x=40+30*(nth%8); s.y=90+30*(nth%8); nth++;}
+    if(s.w) w.style.width=s.w+'px'; else w.style.width='';
+    if(s.h&&!s.c) w.style.height=s.h+'px'; else w.style.height='';
+    const [x,y]=clamp(w,s.x,s.y); w.style.left=x+'px'; w.style.top=y+'px'; w.style.zIndex=++zTop;
+  }else{
+    ['left','top','width','height','zIndex'].forEach(k=>w.style[k]='');
+  }
+  if(id==='days'&&main) main.classList.toggle('nodays',!!s.f);
+  fit();
+}
+function make(id,title){
+  const el=document.getElementById(id); if(!el) return;
+  const w=document.createElement('section'); w.className='panel'; w.setAttribute('aria-label',title);
+  const head=document.createElement('div'); head.className='phead';
+  const t=document.createElement('span'); t.className='ptitle'; t.textContent=title;
+  const cb=document.createElement('button'); cb.type='button'; cb.className='pbtn';
+  const fb=document.createElement('button'); fb.type='button'; fb.className='pbtn';
+  head.append(t,cb,fb);
+  const body=document.createElement('div'); body.className='pbody';
+  el.replaceWith(w); body.append(el); w.append(head,body);
+  st[id]=Object.assign({c:false,f:false},st[id]||{});
+  P[id]={w,head,body,cb,fb,title};
+  cb.onclick=()=>{st[id].c=!st[id].c; save(); apply(id);};
+  fb.onclick=()=>{st[id].f=!st[id].f; save(); apply(id);};
+  head.ondblclick=e=>{if(!e.target.closest('button')){st[id].c=!st[id].c; save(); apply(id);}};
+  w.addEventListener('pointerdown',()=>{if(st[id].f) w.style.zIndex=++zTop;});
+  head.addEventListener('pointerdown',e=>{
+    if(!st[id].f||e.target.closest('button')||e.button>0) return;
+    const r=w.getBoundingClientRect(),dx=e.clientX-r.left,dy=e.clientY-r.top;
+    head.setPointerCapture(e.pointerId);
+    const mv=ev=>{const [x,y]=clamp(w,ev.clientX-dx,ev.clientY-dy); w.style.left=x+'px'; w.style.top=y+'px'; st[id].x=x; st[id].y=y;};
+    const up=()=>{head.removeEventListener('pointermove',mv); head.removeEventListener('pointerup',up); head.removeEventListener('pointercancel',up); save();};
+    head.addEventListener('pointermove',mv); head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
+  });
+  if(window.ResizeObserver) new ResizeObserver(()=>{
+    if(st[id].f&&!st[id].c&&w.offsetWidth){st[id].w=w.offsetWidth; st[id].h=w.offsetHeight; save();}
+  }).observe(w);
+}
+/* Let the 3D chart use the space freed by collapsed or floating panels (never smaller than before). */
+let fitQ=false;
+function fit(){
+  if(fitQ) return; fitQ=true;
+  requestAnimationFrame(()=>{
+    fitQ=false;
+    const g=document.getElementById('gcanvas'); if(!g||!g.offsetParent) return;
+    const top=g.getBoundingClientRect().top+scrollY;
+    const h=Math.round(Math.max(460,innerHeight-21*16,innerHeight-top-24));
+    if(g.style.height!==h+'px') g.style.height=h+'px';
+  });
+}
+defs.forEach(d=>make(d[0],d[1]));
+Object.keys(P).forEach(apply);
+/* header buttons */
+const hdr=document.querySelector('header');
+if(hdr){
+  const tools=document.createElement('div'); tools.className='paneltools'; tools.setAttribute('role','group'); tools.setAttribute('aria-label','Panel layout');
+  const mk=(txt,fn)=>{const b=document.createElement('button'); b.type='button'; b.className='btn'; b.textContent=txt; b.onclick=fn; return b;};
+  let allC=false;
+  const bc=mk('▾ Collapse all',()=>{allC=!allC; Object.keys(P).forEach(id=>{st[id].c=allC; apply(id);}); save(); bc.textContent=allC?'▸ Expand all':'▾ Collapse all';});
+  const bd=mk('⇲ Dock all',()=>{Object.keys(P).forEach(id=>{st[id].f=false; apply(id);}); save();});
+  const br=mk('↺ Reset layout',()=>{Object.keys(P).forEach(id=>{st[id]={c:false,f:false}; apply(id);}); allC=false; bc.textContent='▾ Collapse all'; save();});
+  tools.append(bc,bd,br); hdr.append(tools);
+}
+addEventListener('resize',()=>{Object.keys(P).forEach(id=>{if(st[id].f) apply(id);}); fit();});
+if(window.ResizeObserver) new ResizeObserver(fit).observe(document.body);
+fit();
 })();
 </script>
 </body>
