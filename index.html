@@ -1,9 +1,20 @@
 <!DOCTYPE html>
 <!--
-  Browse History Recall - v2.4.0
+  Browse History Recall - v2.6.0
   Day-by-day timeline of your Chrome history, color-coded by category.
   Everything runs locally in your browser; the History file is never uploaded.
 
+  v2.6.0 | 2026-11-09 | Chi-Yu Sheu
+  - Zoom through time: wheel zooms toward the cursor; the time axis refines (days, hours, minutes) and labels, then full cards, appear for the busiest pages as you zoom in; dots keep their on-screen size so the axis spreads them apart ("Detail on zoom" toggle)
+  - Every non-chart panel can be collapsed or popped out into a draggable, resizable floating window (header buttons: Collapse all / Dock all / Reset layout)
+  - Optional thumbnails (off by default): YouTube video thumbnail or site icon on hover, pinned and zoom cards; loads images from YouTube / Google favicon service only when ticked
+  - Time-axis ticks on the 3D lanes view are now live HTML labels pinned to the bottom edge
+  v2.5.0 | 2026-11-08 | Chi-Yu Sheu
+  - Imported into the chisheu.com repo; brought in line with the new-app protocol
+  - Light and dark themes (shared 'theme' key, toggle in the header); the 3D view keeps a dark stage in both
+  - Share button (native share, link-copy fallback), social preview image, home link, anonymous usage counter tag
+  - sql.js, three.js and OrbitControls now ship in this folder: no CDN, works offline after first load
+  - Credits: sql.js 1.8.0 (MIT, sql-js/sql.js), three.js r128 (MIT, mrdoob/three.js)
   v2.4.0 | 2026-11-08 | Chi-Yu Sheu
   - Open-file button now shows the History file location for the detected platform (Windows / macOS / Linux)
   - New "Where is my History file?" guide under the buttons: OS switcher, copy-path buttons, per-OS tips for pasting the path into the file window
@@ -40,13 +51,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Browse History Recall v2.4.0</title>
-<meta name="description" content="Review your Chrome browsing history day by day, color-coded by category. Runs locally in your browser.">
+<title>Browse History Recall v2.6.0 | chisheu.com</title>
+<meta name="description" content="Review your Chrome browsing history day by day or as a 3D graph, color-coded by category. Runs locally in your browser; the History file is never uploaded.">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1626" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://chisheu.com/browse-history/">
+<meta property="og:title" content="Browse History Recall">
+<meta property="og:description" content="Your Chrome history as a day-by-day timeline or a 3D graph. Runs locally; nothing is uploaded.">
+<meta property="og:url" content="https://chisheu.com/browse-history/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="chisheu.com">
+<meta property="og:image" content="https://chisheu.com/browse-history/og.jpg?v=250">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Browse History Recall: a 3D graph of browsing history colored by category">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://chisheu.com/browse-history/og.jpg?v=250">
+<!-- Theme: set before paint, same key as the chisheu.com homepage -->
+<script>(function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
 <style>
 :root{
+  color-scheme:light;
+  --bg:#f5f5f7; --panel:#ffffff; --panel2:#e9eef7; --line:#c3cbd9;
+  --txt:#1d1d1f; --mute:#555d6b; --acc:#0a58c4; --focus:#c25e00;
+  --inset:#ffffff; --accbg:#dbe8fb; --err:#b3261e;
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
   --bg:#0f1626; --panel:#172138; --panel2:#1e2b48; --line:#34456b;
   --txt:#e6ebf5; --mute:#b4bfd6; --acc:#7fd6ff; --focus:#ffd166;
+  --inset:#0b1220; --accbg:#1d4f6e; --err:#ffb4b4;
 }
+/* the 3D stage and its cards stay dark in both themes */
+#gcanvas{--panel:#172138;--panel2:#1e2b48;--line:#34456b;--txt:#e6ebf5;--mute:#b4bfd6;--acc:#7fd6ff;--inset:#0b1220;--accbg:#1d4f6e;color:var(--txt)}
 *{box-sizing:border-box}
 html{font-size:16px}
 body{margin:0;background:var(--bg);color:var(--txt);font-family:Georgia,'Times New Roman',serif;line-height:1.6}
@@ -58,15 +94,15 @@ h1{font-size:1.25rem;margin:0}
 .ver{font-family:Consolas,monospace;font-size:.8125rem;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 .5rem}
 .btn{min-height:44px;padding:.4rem 1rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer}
 .btn:hover{border-color:var(--acc)}
-.btn.primary{background:#1d4f6e;border-color:var(--acc);font-weight:700}
+.btn.primary{background:var(--accbg);border-color:var(--acc);font-weight:700}
 .btn[aria-pressed="false"]{opacity:1;text-decoration:line-through;color:var(--mute)}
-input[type=number],input[type=search],textarea{background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
+input[type=number],input[type=search],textarea{background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
 input[type=number]{width:5.5rem}
 input[type=search]{flex:1 1 14rem;min-width:10rem}
 label{font-size:.9375rem}
 .controls{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:.75rem 1rem;border-bottom:1px solid var(--line)}
 #status{padding:.25rem 1rem;font-size:.9375rem;color:var(--mute);min-height:1.9rem}
-#status.err{color:#ffb4b4}
+#status.err{color:var(--err)}
 #legend{display:flex;flex-wrap:wrap;gap:.5rem;padding:.5rem 1rem}
 main{display:grid;grid-template-columns:minmax(12rem,16rem) 1fr;gap:0;min-height:60vh}
 #days{border-right:1px solid var(--line);max-height:calc(100vh - 14rem);overflow:auto;padding:.5rem}
@@ -83,7 +119,10 @@ main{display:grid;grid-template-columns:minmax(12rem,16rem) 1fr;gap:0;min-height
 .gap{font-size:.875rem;color:var(--mute);margin:.5rem 0 .5rem 5.5rem;border-left:2px dashed var(--line);padding-left:.75rem}
 .row{display:grid;grid-template-columns:4.75rem 9.5rem 1fr;gap:.5rem .75rem;align-items:start;padding:.4rem .5rem;border-left:5px solid var(--c,#999);border-radius:4px;margin:.2rem 0;background:var(--panel)}
 .row time{font-family:Consolas,monospace;font-size:.9375rem;color:var(--mute);padding-top:.1rem}
-.chip{display:inline-block;font-size:.8125rem;font-weight:700;color:var(--c);border:1px solid var(--c);border-radius:999px;padding:0 .6rem;white-space:nowrap;background:#0b1220}
+.chip{display:inline-block;font-size:.8125rem;font-weight:700;color:var(--c);border:1px solid var(--c);border-radius:999px;padding:0 .6rem;white-space:nowrap;background:var(--inset)}
+.btn.cat{color:var(--c);border-color:var(--c)}
+html:not([data-theme="dark"]) :is(.chip,.btn.cat){color:color-mix(in srgb,var(--c) 38%,#000)}
+#gcanvas .chip{color:var(--c)}
 .t{display:block;font-size:1rem;word-break:break-word}
 .u{display:block;font-size:.8125rem;color:var(--mute);word-break:break-all}
 .m{font-family:Consolas,monospace;font-size:.8125rem;color:var(--mute)}
@@ -93,17 +132,17 @@ summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
 textarea{width:100%;min-height:15rem;font-family:Consolas,monospace;font-size:.875rem;line-height:1.5}
 footer{padding:1rem;color:var(--mute);font-size:.8125rem}
 [hidden]{display:none!important}
-select{color:var(--txt);background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
+select{color:var(--txt);background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
 .vbtn{min-height:44px;padding:.4rem 1rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer}
-.vbtn[aria-pressed="true"]{background:#1d4f6e;border-color:var(--acc);font-weight:700}
+.vbtn[aria-pressed="true"]{background:var(--accbg);border-color:var(--acc);font-weight:700}
 #right{min-width:0}
 #graphWrap{padding:1rem 1.25rem}
 .gbar{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-bottom:.5rem}
-#gcanvas{position:relative;height:calc(100vh - 21rem);min-height:460px;background:#0b1220;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#gcanvas{position:relative;height:calc(100vh - 21rem);min-height:460px;background:var(--inset);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 #gcanvas canvas{display:block;width:100%;height:100%}
-#gtip{position:absolute;pointer-events:none;max-width:24rem;background:#0b1220;border:1px solid var(--acc);border-radius:8px;padding:.25rem .6rem;font-size:.875rem;z-index:5}
+#gtip{position:absolute;pointer-events:none;max-width:24rem;background:var(--inset);border:1px solid var(--acc);border-radius:8px;padding:.25rem .6rem;font-size:.875rem;z-index:5}
 #gdetail{margin-top:.75rem;padding:.75rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:5rem}
-input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-align:middle}
+input[type=range]{min-height:44px;width:10rem;accent-color:var(--acc);vertical-align:middle}
 #gtip div{word-break:break-word}
 #gtip .u{display:block;font-size:.8125rem;color:var(--mute)}
 .thumb{display:flex;align-items:center;justify-content:center;width:160px;height:90px;margin:.35rem 0;background:#05080f;border:1px solid #1f2a44;border-radius:6px;overflow:hidden}
@@ -122,20 +161,26 @@ input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-alig
 .glab.l2{width:190px}.glab.l3{width:230px}
 .glab .d{color:var(--mute);font-size:.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #gtip .hint{font-size:.75rem;color:var(--mute);margin-top:.15rem}
-#gpin{position:absolute;left:0;top:0;z-index:6;width:min(23rem,92%);background:#0b1220;border:2px solid var(--acc);border-radius:10px;padding:.6rem .8rem;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+#gpin{position:absolute;left:0;top:0;z-index:6;width:min(23rem,92%);background:var(--inset);border:2px solid var(--acc);border-radius:10px;padding:.6rem .8rem;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+.hbtn{min-width:44px;min-height:44px;padding:0 .6rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:1.125rem;line-height:1}
+.hbtn:hover{border-color:var(--acc)}
+.home{color:var(--acc);text-decoration:none;font-size:.9375rem;min-height:44px;display:inline-flex;align-items:center}
+.hright{margin-left:auto;display:flex;gap:.5rem}
+#toast{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);background:var(--txt);color:var(--bg);padding:.5rem 1rem;border-radius:8px;font-size:.9375rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#toast.show{opacity:1}
 #gpin .top{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.25rem}
 #gpin .t{font-weight:700}
 .alink{display:inline-flex;align-items:center;text-decoration:none;margin:.5rem .5rem 0 0}
 .pickbtn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.3;padding:.4rem 1rem}
-.pickbtn .bh{font-family:Consolas,monospace;font-size:.75rem;font-weight:400;color:#e6ebf5;word-break:break-all}
+.pickbtn .bh{font-family:Consolas,monospace;font-size:.75rem;font-weight:400;color:var(--txt);word-break:break-all}
 #guide{margin-top:.75rem}
 #guide .os{display:flex;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .5rem}
 .pathbox{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0}
-.pathbox code{display:block;flex:1 1 20rem;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.9375rem;word-break:break-all}
+.pathbox code{display:block;flex:1 1 20rem;background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.9375rem;word-break:break-all}
 #guide ol{padding-left:1.4rem}
 #guide li{margin:.4rem 0}
 #copyMsg{font-size:.9375rem;color:var(--mute)}
-#gnote{color:#ffb4b4;font-size:.9375rem}
+#gnote{color:var(--err);font-size:.9375rem}
 /* Collapsible / floating panels */
 .panel{margin:.5rem 1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 main>.panel{margin:.5rem 0 .5rem 1rem;align-self:start;min-width:0}
@@ -159,8 +204,10 @@ main.nodays{grid-template-columns:1fr}
 </head>
 <body>
 <header>
-  <h1>🕘 Browse History Recall</h1><span class="ver" id="verSpan">v2.4.0</span>
+  <a class="home" href="https://chisheu.com/">&#10229; chisheu.com</a>
+  <h1>🕘 Browse History Recall</h1><span class="ver" id="verSpan">v2.6.0</span>
   <span style="color:var(--mute);font-size:.9375rem">Runs only in your browser. Nothing is uploaded.</span>
+  <span class="hright"><button type="button" class="hbtn" id="theme-btn" title="Dark / light mode" aria-label="Toggle dark mode">&#127769;</button><button type="button" class="hbtn" id="share-btn" title="Share" aria-label="Share this page">&#8599;</button></span>
 </header>
 
 <div class="controls" id="pCtl">
@@ -239,14 +286,14 @@ main.nodays{grid-template-columns:1fr}
   <button class="btn" id="resetRules" type="button">Reset to defaults</button></p>
 </details>
 
-<footer>Built by SuperWhizy · <a href="https://chisheu.com/">chisheu.com</a> · <span id="verFoot">v2.4.0</span></footer>
+<footer>Built by SuperWhizy · <a href="https://chisheu.com/">chisheu.com</a> · Uses sql.js (MIT) and three.js (MIT), included in this folder · <span id="verFoot">v2.5.0</span></footer>
 
 <script src="three.min.js"></script>
 <script src="OrbitControls.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script src="sql-wasm.js"></script>
 <script>
 (()=>{
-const VERSION='2.4.0', RKEY='browse-history-rules-v1';
+const VERSION='2.6.0', RKEY='browse-history-rules-v1';
 const IDLE_GAP_MIN=30, MERGE_MIN=10, EPOCH_DIFF_MS=11644473600000;
 const $=id=>document.getElementById(id);
 
@@ -290,8 +337,8 @@ async function openFile(file){
   try{
     status('Reading database…');
     const buf=await file.arrayBuffer();
-    if(typeof initSqlJs==='undefined') throw new Error('The sql.js engine failed to load (check your internet connection).');
-    if(!SQL) SQL=await initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}`});
+    if(typeof initSqlJs==='undefined') throw new Error('The sql.js engine failed to load (sql-wasm.js should sit next to this page; reload and try again).');
+    if(!SQL) SQL=await initSqlJs({locateFile:f=>f});
     if(db) db.close();
     db=new SQL.Database(new Uint8Array(buf));
     $('reload').disabled=false;
@@ -304,6 +351,7 @@ async function openFile(file){
   }
 }
 
+let counted=null;
 function runQuery(){
   if(!db) return;
   try{
@@ -330,6 +378,7 @@ function runQuery(){
     entries=out; group();
     status(`Loaded ${entries.length.toLocaleString()} visits across ${dayKeys.length} days (last ${days} days). Duplicate visits to the same page within ${MERGE_MIN} minutes are merged.`);
     render();
+    if(counted!==db){counted=db;try{window.chMetrics&&chMetrics.use('load_history');}catch(e){}}   // once per opened file, only on success
   }catch(err){
     console.error(err);
     status('Query failed: '+err.message,true);
@@ -367,8 +416,8 @@ function renderLegend(){
   for(const e of pool) counts.set(e.cat.name,(counts.get(e.cat.name)||0)+1);
   for(const c of allCats()){
     const n=counts.get(c.name)||0;
-    const b=el('button',{type:'button',class:'btn','aria-pressed':String(!hidden.has(c.name)),
-      title:'Press to hide or show '+c.name, style:{color:c.color,borderColor:c.color,minHeight:'44px'},
+    const b=el('button',{type:'button',class:'btn cat','aria-pressed':String(!hidden.has(c.name)),
+      title:'Press to hide or show '+c.name, style:{'--c':c.color,minHeight:'44px'},
       onclick:()=>{hidden.has(c.name)?hidden.delete(c.name):hidden.add(c.name);render();}},
       `${c.icon} ${c.name} (${n})`);
     lg.append(b);
@@ -468,9 +517,9 @@ function ensureThree(){return threeP||(threeP=initThree().then(ok=>{if(!ok)three
 async function initThree(){
   if(G) return true;
   try{
-    if(typeof THREE==='undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
-    if(!THREE.OrbitControls) await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
-  }catch(e){gnote('The 3D engine could not load: '+e.message+'. Put three.min.js and OrbitControls.js next to this page, or check your connection.');return false;}
+    if(typeof THREE==='undefined') await loadScript('three.min.js');
+    if(!THREE.OrbitControls) await loadScript('OrbitControls.js');
+  }catch(e){gnote('The 3D engine could not load: '+e.message+'. three.min.js and OrbitControls.js should sit next to this page; reload and try again.');return false;}
   try{
     const host=$('gcanvas');
     const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
@@ -968,6 +1017,18 @@ $('resetRules').onclick=()=>{
   try{localStorage.removeItem(RKEY);}catch(e){}
   loadRules(); recat(); hidden.clear(); render(); status('Category rules reset to defaults.');
 };
+(()=>{const root=document.documentElement,tb=$('theme-btn');
+  const sync=()=>{tb.textContent=root.getAttribute('data-theme')==='dark'?'☀️':'🌙';};
+  tb.addEventListener('click',()=>{const d=root.getAttribute('data-theme')!=='dark';root.setAttribute('data-theme',d?'dark':'light');try{localStorage.setItem('theme',d?'dark':'light');}catch(e){}sync();try{window.chMetrics&&chMetrics.use('theme');}catch(e){}});
+  sync();
+  const toast=document.createElement('div');toast.id='toast';toast.setAttribute('role','status');document.body.appendChild(toast);
+  const say=m=>{toast.textContent=m;toast.classList.add('show');clearTimeout(toast._h);toast._h=setTimeout(()=>toast.classList.remove('show'),2200);};
+  $('share-btn').addEventListener('click',async()=>{
+    const url='https://chisheu.com/browse-history/',data={title:'Browse History Recall',text:'Review your Chrome history as a timeline or 3D graph. Runs locally; nothing is uploaded.',url};
+    try{window.chMetrics&&chMetrics.use('share');}catch(e){}
+    if(navigator.share){try{await navigator.share(data);return;}catch(e){if(e&&e.name==='AbortError')return;}}
+    try{await navigator.clipboard.writeText(url);say('Link copied');}catch(e){say(url);}
+  });})();
 $('verSpan').textContent='v'+VERSION; $('verFoot').textContent='v'+VERSION;
 loadRules(); renderGuide(); setMode('graph');
 })();
