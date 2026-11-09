@@ -1,0 +1,14 @@
+﻿# Never commit browser history data
+History
+History-journal
+History.*
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+Cookies
+Login Data*
+Web Data
+.env
+.DS_Store
+Thumbs.db

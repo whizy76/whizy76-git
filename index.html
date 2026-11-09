@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<!--
+  Browse History Recall - v2.4.0
+  Day-by-day timeline of your Chrome history, color-coded by category.
+  Everything runs locally in your browser; the History file is never uploaded.
+
+  v2.4.0 | 2026-11-08 | Chi-Yu Sheu
+  - Open-file button now shows the History file location for the detected platform (Windows / macOS / Linux)
+  - New "Where is my History file?" guide under the buttons: OS switcher, copy-path buttons, per-OS tips for pasting the path into the file window
+  - Guide collapses once a file loads and reopens if reading fails; removed the old bottom-of-page instructions
+  v2.3.0 | 2026-11-08 | Chi-Yu Sheu
+  - Default load range 14 -> 90 days (Chrome keeps roughly 90 days)
+  - Graph dot limit is now a knob (3,000 / 10,000 / 25,000 / none), default 10,000; dots drawn with instanced rendering
+  - When over the limit, low-time pages are dropped first, then the oldest; status line shows the date range drawn
+  - Clicking a dot pins an interactive card next to it (follows the dot, Open site button, Esc or Close to dismiss)
+  v2.2.0 | 2026-11-08 | Chi-Yu Sheu
+  - 3D Graph is now the default view (Timeline one click away)
+  - Focus threshold: pages with little/no recorded time on page are dimmed and pushed to the back (or hidden)
+  - New knobs: Size by (time on page / visits / equal), Focus slider, background-page mode, Trails on/off
+  - Richer hover card (title, URL, time, visits, time on page, came-from); double-click opens the site in a new tab
+  - Picking now uses screen-distance so small dots are easy to hover; camera no longer resets when a knob changes
+  v2.1.1 | 2026-11-08 | Chi-Yu Sheu
+  - Fixed low-contrast text in the Show/Layout dropdowns (WCAG AA)
+  v2.1.0 | 2026-11-08 | Chi-Yu Sheu
+  - Restored the Obsidian-style 3D graph as a second view next to the timeline
+  - 3D layouts: Time lanes (X = time, one lane per category, trails drawn as lines) and Clustered by site
+  - Hover tooltip, click-for-details panel, lane/day/site labels, scope (day vs all loaded), auto-rotate toggle
+  - three.js loads from the local files if present, otherwise from CDN fallback
+  v2.0.0 | 2026-11-08 | Chi-Yu Sheu
+  - Rewrite: replaced Second Brain graph with a day-by-day recall timeline
+  - Imports real visit times (visits table) for the last N days, not top-150 by count
+  - Editable category rules (color + icon + text label), day summary bar, idle-gap markers
+  - Search across all loaded days, per-category filter toggles
+  v1.2.1 | 2026-11-08 | Chi-Yu Sheu
+  - Fixed markdown-mangled URLs (wasm locateFile + footer link)
+  v1.2.0 | Chi-Yu Sheu
+  - Chrome History SQLite direct ingestion (Second Brain fork)
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browse History Recall v2.4.0</title>
+<meta name="description" content="Review your Chrome browsing history day by day, color-coded by category. Runs locally in your browser.">
+<style>
+:root{
+  --bg:#0f1626; --panel:#172138; --panel2:#1e2b48; --line:#34456b;
+  --txt:#e6ebf5; --mute:#b4bfd6; --acc:#7fd6ff; --focus:#ffd166;
+}
+*{box-sizing:border-box}
+html{font-size:16px}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:Georgia,'Times New Roman',serif;line-height:1.6}
+a{color:var(--acc)}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+header{display:flex;flex-wrap:wrap;gap:.75rem 1rem;align-items:center;padding:.75rem 1rem;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:1.25rem;margin:0}
+.ver{font-family:Consolas,monospace;font-size:.8125rem;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 .5rem}
+.btn{min-height:44px;padding:.4rem 1rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.btn:hover{border-color:var(--acc)}
+.btn.primary{background:#1d4f6e;border-color:var(--acc);font-weight:700}
+.btn[aria-pressed="false"]{opacity:1;text-decoration:line-through;color:var(--mute)}
+input[type=number],input[type=search],textarea{background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
+input[type=number]{width:5.5rem}
+input[type=search]{flex:1 1 14rem;min-width:10rem}
+label{font-size:.9375rem}
+.controls{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:.75rem 1rem;border-bottom:1px solid var(--line)}
+#status{padding:.25rem 1rem;font-size:.9375rem;color:var(--mute);min-height:1.9rem}
+#status.err{color:#ffb4b4}
+#legend{display:flex;flex-wrap:wrap;gap:.5rem;padding:.5rem 1rem}
+main{display:grid;grid-template-columns:minmax(12rem,16rem) 1fr;gap:0;min-height:60vh}
+#days{border-right:1px solid var(--line);max-height:calc(100vh - 14rem);overflow:auto;padding:.5rem}
+.day{display:block;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;padding:.4rem .6rem;cursor:pointer;min-height:44px}
+.day:hover{background:var(--panel)}
+.day[aria-current="true"]{background:var(--panel2);border-color:var(--acc)}
+.day .n{font-family:Consolas,monospace;font-size:.8125rem;color:var(--mute)}
+.day .bar{height:6px;border-radius:3px;background:var(--acc);margin-top:2px}
+#view{padding:1rem 1.25rem;max-width:62rem}
+#view h2{font-size:1.375rem;margin:0 0 .25rem}
+.sum{display:flex;height:16px;border-radius:8px;overflow:hidden;margin:.5rem 0 1rem;border:1px solid var(--line)}
+.sum span{display:block;height:100%}
+.hour{font-family:Consolas,monospace;font-size:.875rem;color:var(--acc);margin:1.25rem 0 .25rem;border-bottom:1px solid var(--line);padding-bottom:.15rem}
+.gap{font-size:.875rem;color:var(--mute);margin:.5rem 0 .5rem 5.5rem;border-left:2px dashed var(--line);padding-left:.75rem}
+.row{display:grid;grid-template-columns:4.75rem 9.5rem 1fr;gap:.5rem .75rem;align-items:start;padding:.4rem .5rem;border-left:5px solid var(--c,#999);border-radius:4px;margin:.2rem 0;background:var(--panel)}
+.row time{font-family:Consolas,monospace;font-size:.9375rem;color:var(--mute);padding-top:.1rem}
+.chip{display:inline-block;font-size:.8125rem;font-weight:700;color:var(--c);border:1px solid var(--c);border-radius:999px;padding:0 .6rem;white-space:nowrap;background:#0b1220}
+.t{display:block;font-size:1rem;word-break:break-word}
+.u{display:block;font-size:.8125rem;color:var(--mute);word-break:break-all}
+.m{font-family:Consolas,monospace;font-size:.8125rem;color:var(--mute)}
+.empty{color:var(--mute);padding:2rem 0}
+details{margin:.5rem 1rem 1rem;border:1px solid var(--line);border-radius:8px;padding:.5rem 1rem;background:var(--panel)}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+textarea{width:100%;min-height:15rem;font-family:Consolas,monospace;font-size:.875rem;line-height:1.5}
+footer{padding:1rem;color:var(--mute);font-size:.8125rem}
+[hidden]{display:none!important}
+select{color:var(--txt);background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;min-height:44px}
+.vbtn{min-height:44px;padding:.4rem 1rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.vbtn[aria-pressed="true"]{background:#1d4f6e;border-color:var(--acc);font-weight:700}
+#right{min-width:0}
+#graphWrap{padding:1rem 1.25rem}
+.gbar{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;margin-bottom:.5rem}
+#gcanvas{position:relative;height:calc(100vh - 21rem);min-height:460px;background:#0b1220;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#gcanvas canvas{display:block;width:100%;height:100%}
+#gtip{position:absolute;pointer-events:none;max-width:24rem;background:#0b1220;border:1px solid var(--acc);border-radius:8px;padding:.25rem .6rem;font-size:.875rem;z-index:5}
+#gdetail{margin-top:.75rem;padding:.75rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:5rem}
+input[type=range]{min-height:44px;width:10rem;accent-color:#7fd6ff;vertical-align:middle}
+#gtip div{word-break:break-word}
+#gtip .u{display:block;font-size:.8125rem;color:var(--mute)}
+#gtip .hint{font-size:.75rem;color:var(--mute);margin-top:.15rem}
+#gpin{position:absolute;left:0;top:0;z-index:6;width:min(23rem,92%);background:#0b1220;border:2px solid var(--acc);border-radius:10px;padding:.6rem .8rem;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+#gpin .top{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.25rem}
+#gpin .t{font-weight:700}
+.alink{display:inline-flex;align-items:center;text-decoration:none;margin:.5rem .5rem 0 0}
+.pickbtn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.3;padding:.4rem 1rem}
+.pickbtn .bh{font-family:Consolas,monospace;font-size:.75rem;font-weight:400;color:#e6ebf5;word-break:break-all}
+#guide{margin-top:.75rem}
+#guide .os{display:flex;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .5rem}
+.pathbox{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0}
+.pathbox code{display:block;flex:1 1 20rem;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.9375rem;word-break:break-all}
+#guide ol{padding-left:1.4rem}
+#guide li{margin:.4rem 0}
+#copyMsg{font-size:.9375rem;color:var(--mute)}
+#gnote{color:#ffb4b4;font-size:.9375rem}
+@media(max-width:760px){main{grid-template-columns:1fr}#days{max-height:14rem;border-right:0;border-bottom:1px solid var(--line)}.row{grid-template-columns:4.5rem 1fr}.row .chip{grid-column:2}.row .body{grid-column:1/-1}.gap{margin-left:1rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🕘 Browse History Recall</h1><span class="ver" id="verSpan">v2.4.0</span>
+  <span style="color:var(--mute);font-size:.9375rem">Runs only in your browser. Nothing is uploaded.</span>
+</header>
+
+<div class="controls">
+  <button class="btn primary pickbtn" id="pick" type="button" aria-describedby="pathHint"><span>📂 Open Chrome History file</span><span class="bh" id="pathHint">Look for: the file named History</span></button>
+  <input type="file" id="file" hidden>
+  <label for="days_n">Load last <input type="number" id="days_n" min="1" max="3650" value="90"> days</label>
+  <button class="btn" id="reload" type="button" disabled>Reload range</button>
+  <label for="q" class="sr" style="position:absolute;left:-9999px">Search all loaded days</label>
+  <input type="search" id="q" placeholder="Search titles and URLs across all loaded days…" aria-label="Search all loaded days">
+</div>
+<div class="controls" style="border-top:0;padding-top:0">
+  <span id="viewLbl" style="font-size:.9375rem">View:</span>
+  <div role="group" aria-labelledby="viewLbl" style="display:flex;gap:.5rem">
+    <button class="vbtn" id="vTime" type="button" aria-pressed="false">📅 Timeline</button>
+    <button class="vbtn" id="vGraph" type="button" aria-pressed="true">🌐 3D Graph</button>
+  </div>
+</div>
+<details id="guide" open>
+  <summary>📍 Where is my History file? <span style="color:var(--mute);margin-left:.5rem">(detected: <span id="guideOs">Windows</span>)</span></summary>
+  <div class="os" role="group" aria-label="Choose your operating system">
+    <button class="vbtn" type="button" data-os="win" aria-pressed="false">Windows</button>
+    <button class="vbtn" type="button" data-os="mac" aria-pressed="false">macOS</button>
+    <button class="vbtn" type="button" data-os="linux" aria-pressed="false">Linux</button>
+  </div>
+  <p style="margin:.25rem 0">Chrome keeps your browsing history in one file named <b>History</b> (no extension). On <b id="gOsName">Windows</b> it lives here:</p>
+  <div class="pathbox">
+    <code id="gpathTxt"></code>
+    <button class="btn" id="copyFull" type="button">Copy full path</button>
+    <button class="btn" id="copyFolder" type="button">Copy folder path</button>
+    <span id="copyMsg" role="status" aria-live="polite"></span>
+  </div>
+  <ol>
+    <li><b>Copy it somewhere safe first.</b> <span id="stepCopy"></span></li>
+    <li><b>Click “Open Chrome History file”</b> above. <span id="stepDialog"></span></li>
+    <li><b>Choose the copy of History</b> (for example the one on your Desktop).</li>
+  </ol>
+  <p style="margin:.25rem 0;color:var(--mute);font-size:.9375rem">Use more than one Chrome profile? Replace <code>Default</code> in the path with <code>Profile 1</code>, <code>Profile 2</code>, and so on. Everything is read inside your browser; nothing is uploaded.</p>
+</details>
+<div id="status" role="status" aria-live="polite">Pick your Chrome <b>History</b> file to begin. The guide above shows exactly where it is on your computer.</div>
+<div id="legend" role="group" aria-label="Category filters (press to hide or show a category)"></div>
+
+<main>
+  <nav id="days" aria-label="Days with history"></nav>
+  <div id="right">
+    <section id="view" aria-live="polite" hidden><p class="empty">No history loaded yet.</p></section>
+    <section id="graphWrap" aria-label="3D graph of pages">
+      <div class="gbar">
+        <label for="gscope">Show <select id="gscope"><option value="all">all loaded days</option><option value="day">selected day only</option></select></label>
+        <label for="glayout">Layout <select id="glayout"><option value="lanes">Time lanes (left to right = time)</option><option value="cluster">Clustered by site</option></select></label>
+        <label for="gsize">Size by <select id="gsize"><option value="time">time on page</option><option value="visits">number of visits</option><option value="equal">all equal</option></select></label>
+        <label for="gfocus">Focus threshold <input type="range" id="gfocus" min="0" max="120" step="1" value="5"> <output id="gfocusv" for="gfocus">5 s</output></label>
+        <label for="gbg">Pages under threshold <select id="gbg"><option value="dimback">dim and push back</option><option value="dim">dim only</option><option value="hide">hide</option></select></label>
+        <label><input type="checkbox" id="gtrails" checked> Trails</label>
+        <label for="gmax">Max dots <select id="gmax"><option value="3000">3,000</option><option value="10000" selected>10,000</option><option value="25000">25,000</option><option value="0">no limit (may be slow)</option></select></label>
+        <label><input type="checkbox" id="grot"> Auto-rotate</label>
+        <button class="btn" id="gfit" type="button">Reset view</button>
+      </div>
+      <div class="m" id="gstats" style="margin-bottom:.4rem">Open a History file to see the graph.</div>
+      <div id="gnote" role="alert"></div>
+      <div id="gcanvas"><div id="gtip" hidden></div><div id="gpin" role="group" aria-label="Pinned page details" hidden></div></div>
+      <div id="gdetail" aria-live="polite">Drag to rotate, scroll to zoom, right-drag to pan. Hover a dot for a quick look. Click it to pin a card beside it with an Open site button (Esc closes the card), or double-click to open the site straight away. Color = category, size = your Size-by choice, lines = the order you browsed. Faded, deeper dots are pages with little or no recorded time on page (adjust with Focus threshold). The Timeline view is the keyboard and screen-reader friendly version of the same data.</div>
+    </section>
+  </div>
+</main>
+
+
+
+<details id="rulesBox">
+  <summary>Category rules (edit colors, icons, and what goes where)</summary>
+  <p>One rule per line: <code>Name | #color | icon | text to look for in the URL, another, another</code>. The first matching rule wins, so put specific rules above general ones. Anything unmatched becomes "Other".</p>
+  <label for="rules" class="sr" style="position:absolute;left:-9999px">Category rules</label>
+  <textarea id="rules" spellcheck="false" aria-label="Category rules"></textarea>
+  <p><button class="btn primary" id="applyRules" type="button">Apply rules</button>
+  <button class="btn" id="resetRules" type="button">Reset to defaults</button></p>
+</details>
+
+<footer>Built by SuperWhizy · <a href="https://chisheu.com/">chisheu.com</a> · <span id="verFoot">v2.4.0</span></footer>
+
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<script>
+(()=>{
+const VERSION='2.4.0', RKEY='browse-history-rules-v1';
+const IDLE_GAP_MIN=30, MERGE_MIN=10, EPOCH_DIFF_MS=11644473600000;
+const $=id=>document.getElementById(id);
+
+const DEFAULT_RULES=`Email | #7fb2ff | ✉ | mail.google.com, outlook.office, outlook.live
+AI | #f59ee0 | ✦ | claude.ai, anthropic.com, gemini.google.com, chatgpt.com, openai.com, //x.ai, grok.com
+Creator | #ff9f6b | ● | studio.youtube.com, streamyard, obsproject
+Video | #ff8a8a | ▶ | youtube.com, youtu.be, twitch.tv, netflix.com, vimeo.com
+School | #c3a6ff | 🎓 | canvas.fau.edu, fau.edu, blackboard
+Work | #ffd166 | 🏗 | fdot.gov, sharepoint.com, office.com, teams.microsoft, myfdot
+Finance | #7fe3a1 | $ | chase.com, finance.yahoo, google.com/finance, schwab, fidelity, robinhood, tastytrade
+Shopping | #ffbf80 | 🛒 | amazon.com, ebay.com, aliexpress, walmart.com, homedepot.com, harborfreight
+Maps/GIS | #e6e08a | 📍 | google.com/maps, maps.google, arcgis, openstreetmap, usgs.gov
+Dev/Hosting | #5fe0e0 | </> | github.com, dreamhost, chisheu.com, purpy.com, localhost, cloudflare, stackoverflow, npmjs, pypi.org
+Social | #a8d672 | 💬 | //x.com, //twitter.com, facebook.com, reddit.com, instagram.com, tiktok.com, linkedin.com, discord.com
+Search | #c9d1e3 | 🔍 | google.com/search, bing.com/search, duckduckgo.com`;
+const OTHER={name:'Other',color:'#a3b0c8',icon:'•'};
+
+let SQL=null, db=null, rules=[], entries=[], byDay=new Map(), dayKeys=[], selDay=null, hidden=new Set(), query='';
+
+function status(msg,err){const s=$('status');s.className=err?'err':'';s.innerHTML='';s.append(msg);}
+function parseRules(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#')).map(l=>{
+    const p=l.split('|').map(x=>x.trim());
+    if(p.length<4) return null;
+    return {name:p[0],color:p[1],icon:p[2],pats:p.slice(3).join('|').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean)};
+  }).filter(Boolean);
+}
+function loadRules(){
+  let t=DEFAULT_RULES;
+  try{const s=localStorage.getItem(RKEY); if(s) t=s;}catch(e){}
+  $('rules').value=t; rules=parseRules(t);
+}
+function catOf(url){
+  const u=url.toLowerCase();
+  for(const r of rules) if(r.pats.some(p=>u.includes(p))) return r;
+  return OTHER;
+}
+function allCats(){return rules.concat([OTHER]);}
+
+async function openFile(file){
+  try{
+    status('Reading database…');
+    const buf=await file.arrayBuffer();
+    if(typeof initSqlJs==='undefined') throw new Error('The sql.js engine failed to load (check your internet connection).');
+    if(!SQL) SQL=await initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}`});
+    if(db) db.close();
+    db=new SQL.Database(new Uint8Array(buf));
+    $('reload').disabled=false;
+    runQuery();
+    if(entries.length) $('guide').open=false;
+  }catch(err){
+    console.error(err);
+    $('guide').open=true;
+    status('Could not read that file: '+err.message+' If Chrome is open, copy the History file to your desktop first and open the copy.',true);
+  }
+}
+
+function runQuery(){
+  if(!db) return;
+  try{
+    const days=Math.min(3650,Math.max(1,parseInt($('days_n').value,10)||14));
+    const cutMs=Date.now()-days*86400000;
+    const cut=Math.round((cutMs+EPOCH_DIFF_MS)*1000);
+    const res=db.exec(`SELECT v.id,v.from_visit,u.url,u.title,v.visit_time,v.visit_duration
+      FROM visits v JOIN urls u ON u.id=v.url
+      WHERE v.visit_time>=${cut} AND (v.transition & 255) NOT IN (3,4)
+      ORDER BY v.visit_time ASC`);
+    const rows=res.length?res[0].values:[];
+    const out=[]; const last=new Map(); const idMap=new Map();
+    for(const [vid,fromV,url,title,vt,dur] of rows){
+      if(/^(chrome|chrome-extension|about|edge|devtools|file|view-source):/i.test(url)) continue;
+      const t=vt/1000-EPOCH_DIFF_MS;
+      const prev=last.get(url);
+      if(prev && t-prev.t<MERGE_MIN*60000){prev.n++; prev.dur+=(dur||0)/1000; idMap.set(vid,prev); continue;}
+      let domain='';
+      try{domain=new URL(url).hostname.replace(/^www\./,'');}catch(e){}
+      const e={t,url,title:(title||'').trim(),dur:(dur||0)/1000,n:1,domain,cat:catOf(url),fromVid:fromV,from:null};
+      out.push(e); last.set(url,e); idMap.set(vid,e);
+    }
+    for(const e of out){const f=e.fromVid?idMap.get(e.fromVid):null; e.from=(f&&f!==e)?f:null;}
+    entries=out; group();
+    status(`Loaded ${entries.length.toLocaleString()} visits across ${dayKeys.length} days (last ${days} days). Duplicate visits to the same page within ${MERGE_MIN} minutes are merged.`);
+    render();
+  }catch(err){
+    console.error(err);
+    status('Query failed: '+err.message,true);
+  }
+}
+function dayKey(t){return new Date(t).toLocaleDateString('en-CA');}
+function group(){
+  byDay=new Map();
+  for(const e of entries){const k=dayKey(e.t); if(!byDay.has(k)) byDay.set(k,[]); byDay.get(k).push(e);}
+  dayKeys=[...byDay.keys()].sort().reverse();
+  if(!selDay||!byDay.has(selDay)) selDay=dayKeys[0]||null;
+}
+function recat(){for(const e of entries) e.cat=catOf(e.url);}
+
+function el(tag,attrs,...kids){
+  const n=document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs||{})){
+    if(k==='style'&&typeof v==='object') Object.assign(n.style,v);
+    else if(k.startsWith('on')) n[k]=v; else if(v!==null&&v!==undefined) n.setAttribute(k,v);
+  }
+  for(const c of kids) n.append(c);
+  return n;
+}
+const fmtTime=t=>new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const fmtHour=t=>new Date(t).toLocaleTimeString([], {hour:'numeric'});
+const fmtDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});};
+const fmtDur=ms=>{const m=Math.round(ms/60000);return m>=1?'~'+(m>=60?(Math.floor(m/60)+'h '+(m%60)+'m'):m+' min'):'';};
+const visible=e=>!hidden.has(e.cat.name);
+
+function renderLegend(){
+  const lg=$('legend'); lg.innerHTML='';
+  const counts=new Map();
+  const dayOnly=selDay&&!query&&!(mode==='graph'&&$('gscope').value==='all');
+  const pool=dayOnly?(byDay.get(selDay)||[]):entries;
+  for(const e of pool) counts.set(e.cat.name,(counts.get(e.cat.name)||0)+1);
+  for(const c of allCats()){
+    const n=counts.get(c.name)||0;
+    const b=el('button',{type:'button',class:'btn','aria-pressed':String(!hidden.has(c.name)),
+      title:'Press to hide or show '+c.name, style:{color:c.color,borderColor:c.color,minHeight:'44px'},
+      onclick:()=>{hidden.has(c.name)?hidden.delete(c.name):hidden.add(c.name);render();}},
+      `${c.icon} ${c.name} (${n})`);
+    lg.append(b);
+  }
+}
+function renderDays(){
+  const nav=$('days'); nav.innerHTML='';
+  const max=Math.max(1,...dayKeys.map(k=>byDay.get(k).length));
+  for(const k of dayKeys){
+    const n=byDay.get(k).length;
+    const b=el('button',{type:'button',class:'day','aria-current':String(k===selDay&&!query),
+      onclick:()=>{selDay=k;$('q').value='';query='';render();$('view').scrollIntoView({block:'start'});}},
+      el('div',{},new Date(...k.split('-').map((x,i)=>i===1?x-1:+x)).toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})),
+      el('div',{class:'n'},`${n} pages`),
+      el('div',{class:'bar',style:{width:Math.max(4,Math.round(n/max*100))+'%'}}));
+    nav.append(b);
+  }
+}
+function rowFor(e){
+  const row=el('div',{class:'row',style:{'--c':e.cat.color}});
+  row.style.setProperty('--c',e.cat.color);
+  const label=e.title||e.domain||e.url;
+  let path=e.url.replace(/^https?:\/\//,'');
+  if(path.length>110) path=path.slice(0,107)+'…';
+  const meta=[]; if(e.n>1) meta.push('×'+e.n+' visits'); const d=fmtDur(e.dur); if(d) meta.push(d+' on page');
+  row.append(
+    el('time',{datetime:new Date(e.t).toISOString()},fmtTime(e.t)),
+    el('span',{class:'chip'},`${e.cat.icon} ${e.cat.name}`),
+    el('div',{class:'body'},
+      el('a',{class:'t',href:e.url,target:'_blank',rel:'noopener noreferrer'},label),
+      el('span',{class:'u'},path),
+      meta.length?el('span',{class:'m'},meta.join(' · ')):''));
+  return row;
+}
+function renderDay(list,box){
+  // summary bar
+  const counts=new Map(); for(const e of list) counts.set(e.cat.name,(counts.get(e.cat.name)||0)+1);
+  const sum=el('div',{class:'sum',role:'img','aria-label':'Share of pages by category: '+[...counts].map(([k,v])=>`${k} ${v}`).join(', ')});
+  for(const c of allCats()){const n=counts.get(c.name); if(n) sum.append(el('span',{title:`${c.name}: ${n}`,style:{width:(n/list.length*100)+'%',background:c.color}}));}
+  box.append(sum);
+  let lastHour=null, prev=null;
+  for(const e of list){
+    if(prev && e.t-prev.t>IDLE_GAP_MIN*60000){
+      const mins=Math.round((e.t-prev.t)/60000);
+      box.append(el('div',{class:'gap'},`⏸ ${mins>=60?Math.floor(mins/60)+'h '+(mins%60)+'m':mins+' min'} with no browsing`));
+    }
+    const h=new Date(e.t).getHours();
+    if(h!==lastHour){box.append(el('div',{class:'hour'},fmtHour(e.t)));lastHour=h;}
+    box.append(rowFor(e)); prev=e;
+  }
+}
+function render(){
+  renderDays(); renderLegend();
+  const v=$('view');
+  $('graphWrap').hidden=(mode!=='graph'); v.hidden=(mode==='graph');
+  if(mode==='graph'){renderGraph();return;}
+  stopLoop();
+  v.innerHTML='';
+  if(!entries.length){v.append(el('p',{class:'empty'},db?'No history in that date range.':'No history loaded yet.'));return;}
+  if(query){
+    const q=query.toLowerCase();
+    const hits=entries.filter(e=>visible(e)&&((e.title+' '+e.url).toLowerCase().includes(q)));
+    v.append(el('h2',{},`Search: “${query}”`),el('div',{class:'m'},`${hits.length} matches${hits.length>400?' (showing the newest 400)':''}`));
+    if(!hits.length){v.append(el('p',{class:'empty'},'Nothing matched.'));return;}
+    let lastDay=null;
+    for(const e of hits.slice(-400).reverse()){
+      const k=dayKey(e.t);
+      if(k!==lastDay){v.append(el('div',{class:'hour'},fmtDay(k)));lastDay=k;}
+      v.append(rowFor(e));
+    }
+    return;
+  }
+  const all=byDay.get(selDay)||[], list=all.filter(visible);
+  v.append(el('h2',{},fmtDay(selDay)),
+    el('div',{class:'m'},`${list.length} of ${all.length} pages shown · first ${all.length?fmtTime(all[0].t):''} · last ${all.length?fmtTime(all[all.length-1].t):''}`));
+  if(!list.length){v.append(el('p',{class:'empty'},'Everything on this day is hidden by the category filters above.'));return;}
+  renderDay(list,v);
+}
+
+/* ---------- 3D graph ---------- */
+const reduce=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+let mode='graph', G=null, threeP=null, rebuildT=null;
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rnd(seed){let t=(seed+0x6D2B79F5)|0;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;}
+function loadScript(src){return new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=src;sc.onload=res;sc.onerror=()=>rej(new Error('Could not load '+src));document.head.appendChild(sc);});}
+function gnote(m){$('gnote').textContent=m||'';}
+const fmtSecs=ms=>ms<1000?'under 1 s recorded':ms<60000?Math.round(ms/1000)+' s on page':fmtDur(ms)+' on page';
+const shortDate=t=>new Date(t).toLocaleDateString([], {month:'short',day:'numeric'});
+function knobs(){return{size:$('gsize').value,focusMs:(+$('gfocus').value)*1000,bg:$('gbg').value,trails:$('gtrails').checked,max:(+$('gmax').value)||Infinity};}
+const isBg=(e,k)=>k.focusMs>0&&e.dur<k.focusMs;
+function radiusOf(e,size){
+  if(size==='time') return 3.5+Math.min(11,Math.log2(1+e.dur/1000)*1.1);
+  if(size==='visits') return 4.5+Math.min(5,Math.log2(e.n+1)*1.6);
+  return 6;
+}
+function ensureThree(){return threeP||(threeP=initThree().then(ok=>{if(!ok)threeP=null;return ok;}));}
+async function initThree(){
+  if(G) return true;
+  try{
+    if(typeof THREE==='undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+    if(!THREE.OrbitControls) await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
+  }catch(e){gnote('The 3D engine could not load: '+e.message+'. Put three.min.js and OrbitControls.js next to this page, or check your connection.');return false;}
+  try{
+    const host=$('gcanvas');
+    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    host.insertBefore(renderer.domElement,host.firstChild);
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(55,1.6,1,6000);
+    const controls=new THREE.OrbitControls(camera,renderer.domElement);
+    controls.enableDamping=!reduce; controls.dampingFactor=0.08; controls.autoRotateSpeed=0.6;
+    G={renderer,scene,camera,controls,group:null,nodes:[],ring:null,bounds:null,raf:0,pend:false,hov:null,pin:null,pinE:null,pinW:300,pinH:160,
+       sig:'',geo:new THREE.SphereGeometry(1,14,10),mats:new Map(),down:null,dummy:new THREE.Object3D(),tmp:new THREE.Vector3()};
+    const cv=renderer.domElement;
+    cv.addEventListener('pointerdown',ev=>{G.down={x:ev.clientX,y:ev.clientY};});
+    cv.addEventListener('pointermove',ev=>{if(G.pend)return;G.pend=true;const x=ev.clientX,y=ev.clientY;requestAnimationFrame(()=>{G.pend=false;hoverAt(x,y);});});
+    cv.addEventListener('pointerleave',()=>{setHover(null);$('gtip').hidden=true;});
+    cv.addEventListener('click',ev=>{
+      if(G.down&&Math.hypot(ev.clientX-G.down.x,ev.clientY-G.down.y)>5) return;
+      const n=pickAt(ev.clientX,ev.clientY); if(n) pinNode(n); else closePin();
+    });
+    cv.addEventListener('dblclick',ev=>{
+      const n=pickAt(ev.clientX,ev.clientY); if(n) window.open(n.e.url,'_blank','noopener,noreferrer');
+    });
+    document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&G&&G.pin) closePin();});
+    if(window.ResizeObserver) new ResizeObserver(()=>resizeG()).observe(host);
+    window.addEventListener('resize',resizeG);
+    return true;
+  }catch(e){gnote('Could not start WebGL: '+e.message);return false;}
+}
+function resizeG(){
+  if(!G) return; const host=$('gcanvas'); const w=host.clientWidth,h=host.clientHeight; if(!w||!h) return;
+  G.renderer.setSize(w,h); G.camera.aspect=w/h; G.camera.updateProjectionMatrix();
+}
+function matFor(color,dim){
+  const key=color+(dim?'|d':''); let m=G.mats.get(key);
+  if(!m){
+    const c=new THREE.Color(color); if(dim) c.lerp(new THREE.Color('#7d8aa5'),0.6);
+    m=new THREE.MeshBasicMaterial(dim?{color:c,transparent:true,opacity:0.3,depthWrite:false}:{color:c});
+    G.mats.set(key,m);
+  }
+  return m;
+}
+function makeLabel(text,color,h){
+  const c=document.createElement('canvas'),x=c.getContext('2d'),fs=36,font=`700 ${fs}px Georgia,serif`;
+  x.font=font; const w=Math.ceil(x.measureText(text).width)+28,hh=fs+20; c.width=w;c.height=hh;
+  x.font=font; x.fillStyle='rgba(11,18,32,0.85)'; x.fillRect(0,0,w,hh);
+  x.fillStyle=color; x.textBaseline='middle'; x.fillText(text,14,hh/2+2);
+  const tex=new THREE.CanvasTexture(c); tex.minFilter=THREE.LinearFilter;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+  sp.scale.set(h*w/hh,h,1); sp.renderOrder=10; return sp;
+}
+function clearGroup(){
+  if(!G.group) return;
+  G.scene.remove(G.group);
+  const shared=[...G.mats.values()];
+  G.group.traverse(o=>{
+    if(o.isInstancedMesh){ if(o.dispose) o.dispose(); return; }
+    if(o.geometry&&o.geometry!==G.geo) o.geometry.dispose();
+    if(o.material){ if(o.material.map) o.material.map.dispose(); if(!shared.includes(o.material)) o.material.dispose(); }
+  });
+  G.group=null; G.nodes=[]; G.ring=null; G.hov=null;
+}
+/* keep the most informative pages when over the dot limit: drop low-time pages first, then the oldest */
+function thin(pool,max,k){
+  if(pool.length<=max) return pool;
+  const fg=pool.filter(e=>!isBg(e,k)), bgl=pool.filter(e=>isBg(e,k));
+  const chosen=fg.length>=max?fg.slice(-max):fg.concat(bgl.slice(-(max-fg.length)));
+  const set=new Set(chosen); return pool.filter(e=>set.has(e));
+}
+function graphPool(k){
+  let base;
+  if(query){const q=query.toLowerCase();base=entries.filter(e=>(e.title+' '+e.url).toLowerCase().includes(q));}
+  else if($('gscope').value==='day') base=byDay.get(selDay)||[];
+  else base=entries;
+  base=base.filter(visible);
+  const nbg=base.filter(e=>isBg(e,k)).length;
+  const full=k.bg==='hide'?base.filter(e=>!isBg(e,k)):base;
+  return {pool:thin(full,k.max,k),total:full.length,nbg,baseCount:base.length};
+}
+function line(pts,color,opacity){
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  return new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity}));
+}
+function buildGraph(){
+  clearGroup(); $('gtip').hidden=true;
+  const k=knobs(), layout=$('glayout').value;
+  const {pool,total,nbg,baseCount}=graphPool(k), group=new THREE.Group();
+  G.scene.add(group); G.group=group; G.bounds=null;
+  $('gdetail').textContent='Hover a dot for a quick look. Click it to pin a card beside it with an Open site button, or double-click to open the site straight away.';
+  if(!entries.length){closePin();$('gstats').textContent='Open a History file to see the graph.';return;}
+  if(!pool.length){closePin();$('gstats').textContent='No pages match the current filters.';return;}
+  const pos=[], mn={x:1e9,y:1e9,z:1e9}, mx={x:-1e9,y:-1e9,z:-1e9};
+  if(layout==='lanes'){
+    const cats=allCats().filter(c=>pool.some(e=>e.cat.name===c.name));
+    const idx=new Map(cats.map((c,i)=>[c.name,i]));
+    const SP=42,W=900,tmin=pool[0].t,tmax=pool[pool.length-1].t,span=Math.max(1,tmax-tmin);
+    const yOf=i=>((cats.length-1)/2-i)*SP;
+    pool.forEach((e,i)=>{
+      const kk=idx.get(e.cat.name),r1=rnd(hashStr(e.url)+i),r2=rnd(hashStr(e.title||e.url)+i*7+1);
+      pos.push({x:-W/2+(e.t-tmin)/span*W,y:yOf(kk)+(r1-.5)*18,z:(r2-.5)*140});
+    });
+    cats.forEach((c,i)=>{
+      group.add(line([-W/2-10,yOf(i),0,W/2+10,yOf(i),0],new THREE.Color(c.color),0.35));
+      const lb=makeLabel(`${c.icon} ${c.name}`,c.color,22); lb.position.set(-W/2-110,yOf(i),0); group.add(lb);
+    });
+    const spanH=span/3600000, bottom=yOf(cats.length-1)-34, top=yOf(0)+22, ticks=[];
+    if(spanH<=48){
+      const step=spanH<=10?1:spanH<=24?2:4, d=new Date(tmin); d.setMinutes(0,0,0); d.setHours(d.getHours()+1);
+      for(;d.getTime()<=tmax&&ticks.length<60;d.setHours(d.getHours()+step)) ticks.push([d.getTime(),fmtHour(d.getTime())]);
+    }else{
+      const step=Math.max(1,Math.ceil(spanH/24/25)), d=new Date(tmin); d.setHours(0,0,0,0); d.setDate(d.getDate()+1);
+      for(;d.getTime()<=tmax&&ticks.length<60;d.setDate(d.getDate()+step)) ticks.push([d.getTime(),shortDate(d.getTime())]);
+    }
+    ticks.forEach(([t,txt])=>{
+      const x=-W/2+(t-tmin)/span*W;
+      group.add(line([x,bottom+8,0,x,top,0],0x8fa3c7,0.14));
+      const lb=makeLabel(txt,'#b4bfd6',18); lb.position.set(x,bottom-6,0); group.add(lb);
+    });
+    mn.x=-W/2-230; mx.x=W/2+20; mn.y=bottom-30; mx.y=top; mn.z=-70; mx.z=70;
+  }else{
+    const cnt=new Map(); pool.forEach(e=>{const d=e.domain||'(none)';cnt.set(d,(cnt.get(d)||0)+1);});
+    const ctr=new Map();
+    for(const d of cnt.keys()){
+      const h=hashStr(d),u=rnd(h)*2-1,th=rnd(h+11)*Math.PI*2,rr=170+rnd(h+23)*170,sq=Math.sqrt(1-u*u);
+      ctr.set(d,{x:rr*sq*Math.cos(th),y:rr*u,z:rr*sq*Math.sin(th)});
+    }
+    pool.forEach((e,i)=>{
+      const d=e.domain||'(none)',c=ctr.get(d),sp=12+Math.sqrt(cnt.get(d))*4,h=hashStr(e.url)+i;
+      pos.push({x:c.x+(rnd(h)-.5)*2*sp,y:c.y+(rnd(h+3)-.5)*2*sp,z:c.z+(rnd(h+5)-.5)*2*sp});
+    });
+    [...cnt.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14).forEach(([d,n])=>{
+      const c=ctr.get(d),lb=makeLabel(`${d} (${n})`,'#e6ebf5',18); lb.position.set(c.x,c.y+12+Math.sqrt(n)*4+12,c.z); group.add(lb);
+    });
+  }
+  const bgFlags=pool.map(e=>isBg(e,k));
+  if(k.bg==='dimback') pool.forEach((e,i)=>{if(bgFlags[i]) pos[i].z-=150;});
+  /* dots: one InstancedMesh per color (and per dimmed/not), so tens of thousands stay smooth */
+  const groups=new Map();
+  pool.forEach((e,i)=>{
+    const bg=bgFlags[i], r=radiusOf(e,k.size), key=e.cat.color+(bg?'|d':'');
+    const n={e,r,bg,pos:new THREE.Vector3(pos[i].x,pos[i].y,pos[i].z),im:null,i:0};
+    G.nodes.push(n);
+    let list=groups.get(key); if(!list){list=[];groups.set(key,list);}
+    n.i=list.length; list.push(n);
+    for(const ax of ['x','y','z']){mn[ax]=Math.min(mn[ax],pos[i][ax]);mx[ax]=Math.max(mx[ax],pos[i][ax]);}
+  });
+  groups.forEach((list,key)=>{
+    const dim=key.endsWith('|d'), color=key.replace('|d','');
+    const im=new THREE.InstancedMesh(G.geo,matFor(color,dim),list.length);
+    im.frustumCulled=false; if(dim) im.renderOrder=-1;
+    list.forEach((n,j)=>{
+      G.dummy.position.copy(n.pos); G.dummy.scale.set(n.r,n.r,n.r); G.dummy.updateMatrix();
+      im.setMatrixAt(j,G.dummy.matrix); n.im=im;
+    });
+    im.instanceMatrix.needsUpdate=true; group.add(im);
+  });
+  if(k.trails){
+    const seg=[],col=[];
+    for(let i=1;i<pool.length;i++) if(pool[i].t-pool[i-1].t<IDLE_GAP_MIN*60000){
+      const a=pos[i-1],b=pos[i],dimmed=bgFlags[i-1]||bgFlags[i],c=dimmed?[0.22,0.27,0.36]:[0.56,0.64,0.78];
+      seg.push(a.x,a.y,a.z,b.x,b.y,b.z); col.push(...c,...c);
+    }
+    if(seg.length){
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(seg,3));
+      g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+      const ls=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.6}));
+      ls.frustumCulled=false; group.add(ls);
+    }
+  }
+  G.ring=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true}));
+  G.ring.visible=false; group.add(G.ring);
+  G.bounds={min:mn,max:mx};
+  const what=query?`search “${query}”, all loaded days`:($('gscope').value==='day'?fmtDay(selDay):'all loaded days');
+  const range=`${shortDate(pool[0].t)} – ${shortDate(pool[pool.length-1].t)}`;
+  const bgTxt=k.focusMs>0?` · ${nbg} of ${baseCount.toLocaleString()} pages had under ${k.focusMs/1000} s recorded (${k.bg==='hide'?'hidden':'faded'})`:'';
+  const capTxt=total>pool.length?` · showing ${pool.length.toLocaleString()} of ${total.toLocaleString()} (dot limit; low-time pages dropped first, then oldest. Raise Max dots to see more)`:'';
+  $('gstats').textContent=`${pool.length.toLocaleString()} pages · ${what} (${range}) · ${layout==='lanes'?'time lanes':'clustered by site'}${capTxt}${bgTxt}`;
+  const sig=[layout,$('gscope').value,selDay,query,entries.length,[...hidden].join(',')].join('|');
+  if(sig!==G.sig){G.sig=sig; fitView();}
+  /* keep the pinned card if its page is still drawn */
+  const pn=G.pinE&&G.nodes.find(n=>n.e===G.pinE);
+  if(pn) pinNode(pn); else closePin();
+}
+function fitView(){
+  if(!G||!G.bounds) return;
+  const b=G.bounds,cx=(b.min.x+b.max.x)/2,cy=(b.min.y+b.max.y)/2,cz=(b.min.z+b.max.z)/2;
+  const w=b.max.x-b.min.x+80,h=b.max.y-b.min.y+80,d=b.max.z-b.min.z;
+  const aspect=G.camera.aspect||1.6,tanv=Math.tan(G.camera.fov*Math.PI/360);
+  const dist=Math.max((h/2)/tanv,(w/2)/(tanv*aspect))*1.08+d/2+40;
+  G.controls.target.set(cx,cy,cz);
+  G.camera.position.set(cx-dist*0.10,cy+dist*0.14,cz+dist*0.98);
+  G.camera.far=Math.max(6000,dist*6); G.camera.updateProjectionMatrix(); G.controls.update();
+}
+/* screen-distance picking: small dots stay easy to hit */
+function pickAt(cx,cy){
+  const cv=G.renderer.domElement,r=cv.getBoundingClientRect(),w=r.width,h=r.height,px=cx-r.left,py=cy-r.top;
+  const tanv=Math.tan(G.camera.fov*Math.PI/360),v=G.tmp;
+  let best=null,bs=1e9;
+  for(const n of G.nodes){
+    v.copy(n.pos).project(G.camera); if(v.z>1||v.z<-1) continue;
+    const sx=(v.x+1)/2*w,sy=(1-v.y)/2*h,d=Math.hypot(sx-px,sy-py);
+    if(d>40) continue;
+    const dist=G.camera.position.distanceTo(n.pos),rpx=n.r*h/(2*tanv*dist);
+    if(d>Math.max(9,rpx+3)) continue;
+    const score=d+(n.bg?8:0)+v.z*4;
+    if(score<bs){bs=score;best=n;}
+  }
+  return best;
+}
+function setNodeScale(n,f){
+  G.dummy.position.copy(n.pos); G.dummy.scale.set(n.r*f,n.r*f,n.r*f); G.dummy.updateMatrix();
+  n.im.setMatrixAt(n.i,G.dummy.matrix); n.im.instanceMatrix.needsUpdate=true;
+}
+function setHover(n){
+  if(G.hov===n) return;
+  if(G.hov) setNodeScale(G.hov,1);
+  G.hov=n; if(n) setNodeScale(n,1.5);
+}
+function metaLines(e){
+  const L=[new Date(e.t).toLocaleString(), `${e.n} visit${e.n>1?'s':''} · ${fmtSecs(e.dur)}`];
+  if(e.from) L.push('came from: '+(e.from.title||e.from.domain||e.from.url).slice(0,80));
+  return L;
+}
+function hoverAt(cx,cy){
+  const tip=$('gtip'),n=pickAt(cx,cy),cv=G.renderer.domElement;
+  setHover(n);
+  if(!n){tip.hidden=true;cv.style.cursor='grab';return;}
+  const e=n.e,r=$('gcanvas').getBoundingClientRect();
+  tip.innerHTML='';
+  tip.append(el('b',{style:{color:e.cat.color}},`${e.cat.icon} ${e.cat.name}`),
+    el('div',{},(e.title||e.domain||e.url).slice(0,100)),
+    el('span',{class:'u'},e.url.replace(/^https?:\/\//,'').slice(0,100)),
+    ...metaLines(e).map(t=>el('div',{class:'m'},t)),
+    el('div',{class:'hint'},'Click to pin a card · double-click to open the site'));
+  tip.hidden=false; cv.style.cursor='pointer';
+  tip.style.left=Math.max(4,Math.min(cx-r.left+14,r.width-tip.offsetWidth-6))+'px';
+  tip.style.top=Math.max(4,Math.min(cy-r.top+14,r.height-tip.offsetHeight-6))+'px';
+}
+function pinBody(e,withClose){
+  const items=[];
+  const head=el('div',{class:'top'},el('span',{class:'chip',style:{'--c':e.cat.color}},`${e.cat.icon} ${e.cat.name}`));
+  if(withClose) head.append(el('button',{type:'button',class:'btn','aria-label':'Close details',onclick:closePin},'✕ Close'));
+  items.push(head,
+    el('a',{class:'t',href:e.url,target:'_blank',rel:'noopener noreferrer'},(e.title||e.domain||e.url)+' ↗'),
+    el('span',{class:'u'},e.url.length>140?e.url.slice(0,137)+'…':e.url),
+    el('span',{class:'m'},metaLines(e).join(' · ')),
+    el('div',{},
+      el('a',{class:'btn primary alink',href:e.url,target:'_blank',rel:'noopener noreferrer'},'Open site in new tab ↗'),
+      el('button',{type:'button',class:'btn',style:{marginTop:'.5rem'},onclick:()=>{selDay=dayKey(e.t);$('q').value='';query='';setMode('timeline');}},'📅 Show this day in the timeline')));
+  return items;
+}
+function pinNode(n){
+  G.pin=n; G.pinE=n.e;
+  G.ring.visible=true; G.ring.position.copy(n.pos); const sc=n.r*1.9; G.ring.scale.set(sc,sc,sc);
+  const card=$('gpin'); card.innerHTML=''; card.append(...pinBody(n.e,true)); card.hidden=false;
+  G.pinW=card.offsetWidth||300; G.pinH=card.offsetHeight||160;
+  const box=$('gdetail'); box.innerHTML=''; box.append(...pinBody(n.e,false));
+  G.controls.autoRotate=false;
+  positionPin();
+}
+function closePin(){
+  if(!G) return;
+  G.pin=null; G.pinE=null; if(G.ring) G.ring.visible=false;
+  $('gpin').hidden=true;
+  G.controls.autoRotate=$('grot').checked&&!reduce;
+}
+function positionPin(){
+  const card=$('gpin'),host=$('gcanvas'),w=host.clientWidth,h=host.clientHeight,v=G.tmp;
+  v.copy(G.pin.pos).project(G.camera);
+  if(v.z>1){card.style.visibility='hidden';return;}
+  card.style.visibility='visible';
+  const sx=(v.x+1)/2*w,sy=(1-v.y)/2*h,cw=G.pinW,ch=G.pinH;
+  let x=sx+18; if(x+cw>w-6) x=sx-18-cw; x=Math.max(6,Math.min(x,w-cw-6));
+  let y=Math.max(6,Math.min(sy-24,h-ch-6));
+  card.style.transform=`translate(${x}px,${y}px)`;
+}
+function startLoop(){
+  if(!G||G.raf) return;
+  const step=()=>{G.raf=requestAnimationFrame(step);G.controls.update();G.renderer.render(G.scene,G.camera);if(G.pin) positionPin();};
+  step();
+}
+function stopLoop(){if(G&&G.raf){cancelAnimationFrame(G.raf);G.raf=0;}}
+async function renderGraph(){
+  gnote('');
+  const ok=await ensureThree(); if(!ok||mode!=='graph') return;
+  resizeG(); buildGraph(); G.controls.autoRotate=$('grot').checked&&!reduce&&!G.pin; startLoop();
+}
+function setMode(m){
+  mode=m;
+  $('vTime').setAttribute('aria-pressed',String(m==='timeline'));
+  $('vGraph').setAttribute('aria-pressed',String(m==='graph'));
+  render();
+}
+$('vTime').onclick=()=>setMode('timeline');
+$('vGraph').onclick=()=>setMode('graph');
+$('gscope').onchange=()=>render();
+$('glayout').onchange=()=>render();
+$('gsize').onchange=()=>render();
+$('gbg').onchange=()=>render();
+$('gtrails').onchange=()=>render();
+$('gmax').onchange=()=>render();
+$('gfocus').oninput=()=>{
+  const v=+$('gfocus').value; $('gfocusv').textContent=v?v+' s':'off';
+  clearTimeout(rebuildT); rebuildT=setTimeout(()=>render(),120);
+};
+$('grot').onchange=()=>{if(G) G.controls.autoRotate=$('grot').checked&&!reduce&&!G.pin;};
+$('gfit').onclick=()=>fitView();
+if(reduce){$('grot').disabled=true;}
+
+/* ---------- History-file guide ---------- */
+const OSINFO={
+  win:{name:'Windows',
+    path:'%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\History',
+    folder:'%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default',
+    copy:'Chrome locks this file while it is open. In File Explorer, click the address bar, paste the folder path, press Enter, then copy the file named History to your Desktop.',
+    dialog:'In the file window, click the File name box, paste the folder path (use “Copy folder path”), and press Enter. Windows understands %LOCALAPPDATA% there. Then pick your copy.'},
+  mac:{name:'macOS',
+    path:'~/Library/Application Support/Google/Chrome/Default/History',
+    folder:'~/Library/Application Support/Google/Chrome/Default',
+    copy:'In Finder choose Go > Go to Folder (Cmd+Shift+G), paste the folder path, press Return, then copy the file named History to your Desktop. The Library folder is hidden, which is why browsing there by hand is hard.',
+    dialog:'In the file window press Cmd+Shift+G, paste the folder path (use “Copy folder path”), and press Return. Then pick your copy.'},
+  linux:{name:'Linux',
+    path:'~/.config/google-chrome/Default/History',
+    folder:'~/.config/google-chrome/Default',
+    copy:'In your file manager press Ctrl+L, paste the folder path, press Enter, then copy the file named History to your Desktop. Folders starting with a dot are hidden unless you show hidden files (Ctrl+H).',
+    dialog:'In the file window press Ctrl+L, paste the folder path (use “Copy folder path”), and press Enter. Then pick your copy.'}
+};
+function detectOs(){
+  const p=((navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||navigator.userAgent||'').toLowerCase();
+  if(p.includes('win')) return 'win';
+  if(p.includes('mac')||p.includes('iphone')||p.includes('ipad')) return 'mac';
+  if(p.includes('linux')||p.includes('x11')||p.includes('cros')) return 'linux';
+  return 'win';
+}
+let curOs=detectOs(), msgT=null;
+function renderGuide(){
+  const o=OSINFO[curOs];
+  $('guideOs').textContent=o.name; $('gOsName').textContent=o.name;
+  $('gpathTxt').textContent=o.path; $('pathHint').textContent='Look in: '+o.path;
+  $('stepCopy').textContent=o.copy; $('stepDialog').textContent=o.dialog;
+  document.querySelectorAll('#guide [data-os]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.os===curOs)));
+}
+async function copyText(txt){
+  try{await navigator.clipboard.writeText(txt);return true;}catch(e){}
+  try{const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;}catch(e){return false;}
+}
+function copyMsg(ok,what){
+  $('copyMsg').textContent=ok?what+' copied.':'Could not copy automatically. Select the path above and press Ctrl+C.';
+  clearTimeout(msgT); msgT=setTimeout(()=>{$('copyMsg').textContent='';},5000);
+}
+document.querySelectorAll('#guide [data-os]').forEach(b=>{b.onclick=()=>{curOs=b.dataset.os;renderGuide();};});
+$('copyFull').onclick=async()=>copyMsg(await copyText(OSINFO[curOs].path),'Full path');
+$('copyFolder').onclick=async()=>copyMsg(await copyText(OSINFO[curOs].folder),'Folder path');
+
+$('pick').onclick=()=>$('file').click();
+$('file').onchange=e=>{const f=e.target.files[0]; e.target.value=''; if(f) openFile(f);};
+$('reload').onclick=runQuery;
+$('days_n').onchange=()=>{if(db) runQuery();};
+let qt=null; $('q').oninput=e=>{clearTimeout(qt);qt=setTimeout(()=>{query=e.target.value.trim();render();},200);};
+$('applyRules').onclick=()=>{
+  const t=$('rules').value; rules=parseRules(t);
+  try{localStorage.setItem(RKEY,t);}catch(e){}
+  recat(); render(); status('Category rules applied.');
+};
+$('resetRules').onclick=()=>{
+  try{localStorage.removeItem(RKEY);}catch(e){}
+  loadRules(); recat(); hidden.clear(); render(); status('Category rules reset to defaults.');
+};
+$('verSpan').textContent='v'+VERSION; $('verFoot').textContent='v'+VERSION;
+loadRules(); renderGuide(); setMode('graph');
+})();
+</script>
+</body>
+</html>
