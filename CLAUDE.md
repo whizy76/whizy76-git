@@ -14,7 +14,7 @@ tokens, or real browsing data to it or to anything else in this repo.
 | **Owner** (SuperWhizy) | everywhere | all decisions; says "push it", approves deploys |
 | **Desktop Claude** | the owner's Windows PC, this repo and a clone of the private `chisheu.com` repo | prototyping, features, merges onto a branch, the public mirror |
 | **VPS Claude** | the VPS, the private `chisheu.com` repo (`master`) | review, merge to `master`, deploy to the live site, CHANGELOG.md, sitemap |
-| **Hexy** (site agent) | the VPS | cron jobs, server work, monitoring. Never touch what Hexy owns |
+| ~~Hexy~~ (former site agent) | removed 2026-11-10 | **Removed from the project.** Its old duties (cron jobs, server work, monitoring) are unassigned until the owner decides. Do not take them over, and do not assume anyone else has. Ask the owner |
 
 The two Claudes **cannot talk to each other**. GitHub is the only shared surface, so everything that
 matters must be in a commit, a branch name, or the report below. If it is not written down, it did not happen.
