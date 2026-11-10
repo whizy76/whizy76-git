@@ -60,6 +60,13 @@ exception is a pre-release sync from a named branch commit, which must be said i
 ## 6. Rules that prevent most collisions
 - **Check before you start:** `git fetch --all`, then look at `git log origin/master -5` in the private repo and
   `git log origin/main -5` here. If the site moved since your last sync, sync first.
+- **GitHub `master` can lag the VPS.** Automated jobs and VPS Claude commit to the site's `master` on the VPS and
+  push in batches. Always `git fetch` and base a new branch on the current `origin/master`, never on an old
+  local copy. Sync the mirror only from a `master` you have just fetched.
+- **Merge order on the VPS is deploy, then log, then merge.** A branch is merged only after it is live, so `master`
+  matches the live site. `CHANGELOG.md` is VPS-owned: never edit it; on a conflict take `master`'s copy.
+- **Anything under `world/` goes live the moment it is merged** (served straight from the VPS). Never put `world/`
+  changes on a branch unless the owner wants them live at merge time.
 - **One writer per file at a time.** Branch names say who is working: `desktop/<topic>` or
   `browse-history-vX.Y.Z` for Desktop Claude, `vps/<topic>` for VPS Claude.
 - **Stage explicit paths only.** Never `git add -A` or `git commit -a` in the private repo: it has other
